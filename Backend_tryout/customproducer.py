@@ -14,19 +14,7 @@ from streamlit_js_eval import streamlit_js_eval
 # -------------------------------
 # Email Configuration
 # -------------------------------
-EMAIL_CONFIG = {
-    "user_mapping": {
-        "U000001": "manojmalipatil2@gmail.com",
-        "U000002": "affanyasir1932005@gmail.com",
-        "U000003": "chiragh.0804@gmail.com",
-        "U000004": "hemahegde456@gmail.com",
-        "default": "chi2019rag@gmail.com"
-    },
-    "sender": "8f298c001@smtp-brevo.com",  # Your Brevo sender email
-    "password": "6OXy0tILpRDYN1v5",  # Replace with your Brevo SMTP key
-    "server": "smtp-relay.brevo.com",
-    "port": 587  # Brevo's TLS port
-}
+
 
 # -------------------------------
 # Page Configuration
