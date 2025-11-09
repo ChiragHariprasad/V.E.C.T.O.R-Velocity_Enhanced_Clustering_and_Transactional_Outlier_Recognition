@@ -11,9 +11,6 @@ from email.mime.multipart import MIMEMultipart
 def send_otp(receiver_email):
     otp = str(random.randint(100000, 999999))
 
-    sender_email = "manojmalipatil2@gmail.com"
-    sender_password = "oadmuqwagqpdnubl"  # App password (do NOT share publicly)
-
     subject = "Your 2FA Verification Code"
     body = f"Your One-Time Password (OTP) for verification is: {otp}\n\nDo not share this with anyone."
 
