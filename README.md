@@ -294,21 +294,3 @@ of the patented V.E.C.T.O.R system for educational and evaluative purposes.
 No license is granted for reproduction, modification, or derivative use.
 Any unauthorized use constitutes infringement under Indian patent law.
 ```
-
-````
-
----
-
-## 📄 **LICENSE**
-```text
-All Rights Reserved © 2025  
-RV College of Engineering and the listed inventors.  
-
-Patent Application No: 202541077457  
-Published: 3 October 2025  
-Jurisdiction: India (The Patents Act, 1970)  
-
-Permission to view and share this repository for educational or evaluation
-purposes is granted. No license is provided for modification, redistribution,
-or derivative work in any form, physical or digital.
-````
