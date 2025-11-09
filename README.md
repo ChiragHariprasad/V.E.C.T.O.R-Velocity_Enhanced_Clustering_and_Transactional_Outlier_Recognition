@@ -1,5 +1,4 @@
-# TransactionIQ - Advanced Real-time Fraud Detection System
-# =====================================================
+# V.E.C.T.O.R: Real-Time System for Velocity-Enhanced Clustering and Transactional Outlier Recognition in Financial Fraud Detection
 
 ## Table of Contents
 1. [Project Overview](#project-overview)
@@ -16,9 +15,9 @@
 12. [Contributing](#contributing)
 
 ## Project Overview
-===================
 
-TransactionIQ is a state-of-the-art real-time fraud detection system that leverages machine learning and big data technologies to identify potentially fraudulent transactions. The system employs a sophisticated hybrid approach combining user behavior clustering and anomaly detection to provide accurate and timely fraud predictions.
+
+V.E.C.T.O.R is a state-of-the-art real-time fraud detection system that leverages machine learning and big data technologies to identify potentially fraudulent transactions. The system employs a sophisticated hybrid approach combining user behavior clustering and anomaly detection to provide accurate and timely fraud predictions.
 
 Key Features:
 - Real-time transaction monitoring and fraud detection
@@ -30,7 +29,7 @@ Key Features:
 - Historical data analysis and reporting
 
 ## System Architecture
-=====================
+
 
 ### Backend Components
 
@@ -132,12 +131,12 @@ b) Analysis Tools:
    - Custom date ranges
 
 ## Project Structure and File Organization
-=======================================
+
 
 ### Directory Structure
 ---------------------
 ```
-TransactionIQ/
+V.E.C.T.O.R/
 ├── Backend/
 │   ├── cluster_models/           # Trained model files
 │   │   ├── cluster_*_bundle.pkl  # Cluster-specific models
@@ -188,7 +187,7 @@ TransactionIQ/
    - ChartCard.tsx: Visualization components
 
 ## Transaction Flow and Processing
-===============================
+
 
 ### 1. Transaction Lifecycle
 --------------------------
@@ -244,13 +243,13 @@ TransactionIQ/
    ```
 
 ## Mathematical Models and Formulas
-================================
+
 
 ### 1. User Clustering (HDBSCAN)
 -----------------------------
 1. Distance Metric:
    ```
-   d(x,y) = √(Σ(x_i - y_i)²)
+   d(x,y)  √(Σ(x_i - y_i)²)
    where:
    - x, y are feature vectors
    - i represents feature dimensions
@@ -258,7 +257,7 @@ TransactionIQ/
 
 2. Density Calculation:
    ```
-   ρ(x) = Σ K(d(x,y))
+   ρ(x)  Σ K(d(x,y))
    where:
    - K is the kernel function
    - d(x,y) is the distance between points
@@ -266,7 +265,7 @@ TransactionIQ/
 
 3. Cluster Formation:
    ```
-   C = {x | ρ(x) ≥ ρ_min}
+   C  {x | ρ(x) ≥ ρ_min}
    where:
    - C is a cluster
    - ρ_min is minimum density threshold
@@ -276,7 +275,7 @@ TransactionIQ/
 -------------------------------------
 1. Anomaly Score:
    ```
-   s(x) = 2^(-E(h(x))/c(n))
+   s(x)  2^(-E(h(x))/c(n))
    where:
    - h(x) is path length
    - c(n) is average path length
@@ -285,7 +284,7 @@ TransactionIQ/
 
 2. Path Length:
    ```
-   h(x) = e + c(T.size)
+   h(x)  e + c(T.size)
    where:
    - e is number of edges
    - c is correction factor
@@ -294,7 +293,7 @@ TransactionIQ/
 
 3. Normalized Score:
    ```
-   score(x) = (s(x) - s_min) / (s_max - s_min)
+   score(x)  (s(x) - s_min) / (s_max - s_min)
    where:
    - s_min is minimum score
    - s_max is maximum score
@@ -304,7 +303,7 @@ TransactionIQ/
 -----------------------
 1. Transaction Velocity:
    ```
-   V = n / Δt
+   V  n / Δt
    where:
    - n is number of transactions
    - Δt is time period
@@ -312,7 +311,7 @@ TransactionIQ/
 
 2. Large Transaction Detection:
    ```
-   L = 1 if amount > (μ + kσ)
+   L  1 if amount > (μ + kσ)
    where:
    - μ is mean transaction amount
    - σ is standard deviation
@@ -321,7 +320,7 @@ TransactionIQ/
 
 3. User Behavior Score:
    ```
-   B = Σ(w_i * f_i)
+   B  Σ(w_i * f_i)
    where:
    - w_i are feature weights
    - f_i are normalized features
@@ -331,7 +330,7 @@ TransactionIQ/
 ----------------------------
 1. Precision:
    ```
-   P = TP / (TP + FP)
+   P  TP / (TP + FP)
    where:
    - TP is true positives
    - FP is false positives
@@ -339,19 +338,19 @@ TransactionIQ/
 
 2. Recall:
    ```
-   R = TP / (TP + FN)
+   R  TP / (TP + FN)
    where:
    - FN is false negatives
    ```
 
 3. F1 Score:
    ```
-   F1 = 2 * (P * R) / (P + R)
+   F1  2 * (P * R) / (P + R)
    ```
 
 4. ROC-AUC:
    ```
-   AUC = ∫ TPR d(FPR)
+   AUC  ∫ TPR d(FPR)
    where:
    - TPR is true positive rate
    - FPR is false positive rate
@@ -361,7 +360,7 @@ TransactionIQ/
 -------------------------------
 1. Processing Latency:
    ```
-   L = t_end - t_start
+   L  t_end - t_start
    where:
    - t_start is transaction receipt time
    - t_end is prediction completion time
@@ -369,7 +368,7 @@ TransactionIQ/
 
 2. Throughput:
    ```
-   T = n / Δt
+   T  n / Δt
    where:
    - n is number of processed transactions
    - Δt is time period
@@ -377,29 +376,29 @@ TransactionIQ/
 
 3. Cache Hit Rate:
    ```
-   H = hits / (hits + misses)
+   H  hits / (hits + misses)
    where:
    - hits is cache hits
    - misses is cache misses
    ```
 
 ## Technical Stack
-=================
+
 
 ### Backend Requirements
 ----------------------
 1. Python 3.x
 2. Required Python Packages:
-   - scikit-learn==1.3.0
-   - xgboost==2.0.0
-   - redis==5.0.1
-   - pymongo==4.5.0
-   - streamlit==1.28.0
-   - pandas==2.1.1
-   - numpy==1.24.3
-   - umap-learn==0.5.4
-   - hdbscan==0.8.33
-   - joblib==1.3.2
+   - scikit-learn1.3.0
+   - xgboost2.0.0
+   - redis5.0.1
+   - pymongo4.5.0
+   - streamlit1.28.0
+   - pandas2.1.1
+   - numpy1.24.3
+   - umap-learn0.5.4
+   - hdbscan0.8.33
+   - joblib1.3.2
 
 3. Database Requirements:
    - MongoDB 6.0+
@@ -409,19 +408,19 @@ TransactionIQ/
 -----------------------
 1. Node.js 16+
 2. Required npm Packages:
-   - react==18.2.0
-   - react-dom==18.2.0
-   - typescript==5.2.2
-   - tailwindcss==3.3.3
-   - chart.js==4.4.0
-   - socket.io-client==4.7.2
-   - framer-motion==10.16.4
-   - date-fns==2.30.0
-   - axios==1.6.2
-   - lucide-react==0.294.0
+   - react18.2.0
+   - react-dom18.2.0
+   - typescript5.2.2
+   - tailwindcss3.3.3
+   - chart.js4.4.0
+   - socket.io-client4.7.2
+   - framer-motion10.16.4
+   - date-fns2.30.0
+   - axios1.6.2
+   - lucide-react0.294.0
 
 ## Model Architecture
-====================
+
 
 ### 1. User Clustering
 ---------------------
@@ -487,7 +486,7 @@ b) Dynamic Features:
    - Time-based patterns
 
 ## Setup Instructions
-====================
+
 
 ### Prerequisites Installation
 ----------------------------
@@ -558,7 +557,7 @@ b) Dynamic Features:
    ```
 
 ## Usage Guide
-=============
+
 
 ### Real-time Monitoring
 ----------------------
@@ -597,7 +596,7 @@ b) Dynamic Features:
    - User statistics
 
 ## API Documentation
-==================
+
 
 ### REST Endpoints
 ----------------
@@ -640,7 +639,7 @@ b) Dynamic Features:
    ```
 
 ## Model Training
-===============
+
 
 ### Automatic Retraining
 ----------------------
@@ -675,7 +674,7 @@ b) Dynamic Features:
    - Update documentation
 
 ## Performance Monitoring
-=======================
+
 
 ### Key Metrics
 -------------
@@ -712,7 +711,7 @@ b) Dynamic Features:
    - Security logs
 
 ## Security
-==========
+
 
 ### Authentication
 ----------------
@@ -743,7 +742,7 @@ b) Dynamic Features:
    - Backup procedures
 
 ## Troubleshooting
-=================
+
 
 ### Common Issues
 ---------------
@@ -796,48 +795,3 @@ b) Dynamic Features:
    - Performance graphs
    - Error tracking
    - User analytics
-
-## Contributing
-=============
-
-### Development Process
----------------------
-1. Fork Repository:
-   - Create feature branch
-   - Follow coding standards
-   - Write tests
-   - Update documentation
-
-2. Pull Request:
-   - Describe changes
-   - Include tests
-   - Update documentation
-   - Request review
-
-### Code Standards
-----------------
-1. Python:
-   - PEP 8 compliance
-   - Type hints
-   - Docstrings
-   - Unit tests
-
-2. TypeScript/React:
-   - ESLint rules
-   - TypeScript strict mode
-   - Component documentation
-   - Unit tests
-
-### Documentation
----------------
-1. Code Documentation:
-   - Function documentation
-   - Class documentation
-   - API documentation
-   - Setup instructions
-
-2. User Documentation:
-   - User guides
-   - API reference
-   - Troubleshooting
-   - Best practices
