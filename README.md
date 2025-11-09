@@ -2,13 +2,35 @@
 
 ```
 V.E.C.T.O.R/
-├── README.md
-├── LICENSE
-├── NOTICE.md
+├── Backend/
+│ ├── consumer.py
+│ ├── trigger.py
+│ ├── producer.py
+│ ├── customproducer.py
+│ ├── cluster_models/
+│ ├── transactions.csv
+│ ├── fraud_scores_by_cluster.csv
+│ ├── user_feature_data.json
+│ └── user_cluster_mapping.json
+│
+├── Frontend/
+│ ├── src/
+│ │ ├── components/
+│ │ ├── context/
+│ │ ├── pages/
+│ │ ├── types/
+│ │ ├── App.tsx
+│ │ ├── main.tsx
+│ │ └── socket.ts
+│ ├── public/
+│ ├── package.json
+│ ├── tsconfig.json
+│ └── vite.config.ts
+│
 └── docs/
-    ├── architecture-diagram.png
-    ├── system-overview.pdf
-    └── demo-video.mp4
+├── architecture-diagram.png
+├── system-overview.pdf
+└── demo-video.mp4
 ```
 
 ---
@@ -118,43 +140,6 @@ It merges machine learning, velocity-based clustering, and data-driven anomaly d
 
 ---
 
-## Directory Structure
-```
-
-V.E.C.T.O.R/
-├── Backend/
-│   ├── consumer.py
-│   ├── trigger.py
-│   ├── producer.py
-│   ├── customproducer.py
-│   ├── cluster_models/
-│   ├── transactions.csv
-│   ├── fraud_scores_by_cluster.csv
-│   ├── user_feature_data.json
-│   └── user_cluster_mapping.json
-│
-├── Frontend/
-│   ├── src/
-│   │   ├── components/
-│   │   ├── context/
-│   │   ├── pages/
-│   │   ├── types/
-│   │   ├── App.tsx
-│   │   ├── main.tsx
-│   │   └── socket.ts
-│   ├── public/
-│   ├── package.json
-│   ├── tsconfig.json
-│   └── vite.config.ts
-│
-└── docs/
-├── architecture-diagram.png
-├── system-overview.pdf
-└── demo-video.mp4
-
-```
-
----
 
 ## Transaction Flow
 ```
