@@ -1,4 +1,3 @@
-```markdown
 ### Legal Notice
 
 This repository contains only non-confidential, redacted representations
@@ -13,4 +12,3 @@ of the patented work titled:
 
 Unauthorized reproduction, modification, or commercial use of any materials,
 concepts, or designs within this repository is prohibited under Indian patent law.
-```
