@@ -1,7 +1,7 @@
 import { io } from 'socket.io-client';
 
 // Creating a socket connection to our Express server
-export const socket = io('https://api.080405.tech', {
+export const socket = io('http://localhost:3001', {
   transports: ['websocket', 'polling'],
   autoConnect: true,
   reconnectionAttempts: 5,
