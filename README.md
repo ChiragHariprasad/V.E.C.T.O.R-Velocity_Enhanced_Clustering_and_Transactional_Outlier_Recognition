@@ -35,9 +35,6 @@ V.E.C.T.O.R/
 
 ---
 
-## 📄 **README.md**
-
-```markdown
 # V.E.C.T.O.R: Real-Time System for Velocity-Enhanced Clustering and Transactional Outlier Recognition in Financial Fraud Detection
 
 ### Patent Metadata
