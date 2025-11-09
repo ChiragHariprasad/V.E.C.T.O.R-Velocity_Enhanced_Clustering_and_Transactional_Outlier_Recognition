@@ -1,797 +1,329 @@
+### 📁 **Repository Root Structure**
+
+```
+V.E.C.T.O.R/
+├── README.md
+├── LICENSE
+├── NOTICE.md
+└── docs/
+    ├── architecture-diagram.png
+    ├── system-overview.pdf
+    └── demo-video.mp4
+```
+
+---
+
+## 📄 **README.md**
+
+```markdown
 # V.E.C.T.O.R: Real-Time System for Velocity-Enhanced Clustering and Transactional Outlier Recognition in Financial Fraud Detection
 
+### Patent Metadata
+**Application No:** 202541077457  
+**Publication Date:** 3 October 2025  
+**Applicant:** RV College of Engineering  
+**Inventors:** Dr. B. Sathish Babu, Chirag Hariprasad, Manoj Malipatil, Dhanush Moolemane, Hema Umesh Hegde, Affan Yasir  
+**Jurisdiction:** The Patents Act, 1970 (India)  
+
+> ⚠️ *Protected intellectual property. Viewing is permitted. Copying or derivative work without authorization is prohibited.*
+
+---
+
 ## Table of Contents
-1. [Project Overview](#project-overview)
+1. [Overview](#overview)
 2. [System Architecture](#system-architecture)
 3. [Technical Stack](#technical-stack)
 4. [Model Architecture](#model-architecture)
-5. [Setup Instructions](#setup-instructions)
-6. [Usage Guide](#usage-guide)
-7. [API Documentation](#api-documentation)
-8. [Model Training](#model-training)
-9. [Performance Monitoring](#performance-monitoring)
-10. [Security](#security)
-11. [Troubleshooting](#troubleshooting)
-12. [Contributing](#contributing)
+5. [Directory Structure](#directory-structure)
+6. [Transaction Flow](#transaction-flow)
+7. [Mathematical Concepts](#mathematical-concepts)
+8. [Setup Guide](#setup-guide)
+9. [Usage Instructions](#usage-instructions)
+10. [API Specification](#api-specification)
+11. [Model Training](#model-training)
+12. [Performance Monitoring](#performance-monitoring)
+13. [Security Framework](#security-framework)
+14. [Troubleshooting](#troubleshooting)
+15. [Legal Notice](#legal-notice)
 
-## Project Overview
+---
 
+## Overview
+**V.E.C.T.O.R** is a patented real-time fraud intelligence platform designed for financial systems.  
+It merges machine learning, velocity-based clustering, and data-driven anomaly detection to identify high-risk transactions in real time.
 
-V.E.C.T.O.R is a state-of-the-art real-time fraud detection system that leverages machine learning and big data technologies to identify potentially fraudulent transactions. The system employs a sophisticated hybrid approach combining user behavior clustering and anomaly detection to provide accurate and timely fraud predictions.
+**Core Objectives**
+- Real-time anomaly recognition  
+- Adaptive behavioral clustering  
+- Hybrid ML integration  
+- Transparent fraud intelligence dashboard  
 
-Key Features:
-- Real-time transaction monitoring and fraud detection
-- User behavior clustering for personalized fraud detection
-- Advanced anomaly detection using Isolation Forest
-- Fallback XGBoost model for edge cases
-- Interactive real-time dashboard
-- Comprehensive transaction analytics
-- Historical data analysis and reporting
+**Key Features**
+- Fraud scoring and user profiling  
+- Streaming-based fraud detection pipeline  
+- Real-time visualization dashboard  
+- Modular data ingestion and analysis architecture  
+
+---
 
 ## System Architecture
 
+### Backend Layers
+| Layer | Description |
+|-------|--------------|
+| **Data Producers** | Generate or stream incoming transactions. |
+| **Data Consumers** | Core ML engine performing feature extraction and fraud inference. |
+| **Model Manager** | Handles training, clustering, and model versioning. |
+| **Databases** | MongoDB and Redis for persistence and caching. |
+| **Storage Layer** | Retains metrics and non-sensitive logs for audits. |
 
-### Backend Components
+---
 
-1. Data Processing Pipeline
---------------------------
-a) Producer Components:
-   - producer.py: Generates synthetic transaction data for testing
-   - customproducer.py: Streamlit-based interface for manual transaction input
-   - Features:
-     * Real-time transaction generation
-     * Custom transaction input
-     * Transaction validation
-     * Data format standardization
+### Frontend Layers
+- Built using **React + TypeScript**  
+- Data updates via **WebSocket streams**  
+- Visual stack: **Chart.js**, **TailwindCSS**, **Framer Motion**  
+- Responsive single-page dashboard for fraud analysis  
 
-b) Consumer Components:
-   - consumer.py: Main fraud detection engine
-   - Features:
-     * Real-time transaction processing
-     * Feature extraction and engineering
-     * Model prediction
-     * Result persistence
-     * Redis caching
-     * MongoDB storage
-
-c) Model Management:
-   - trigger.py: Handles model training and user clustering
-   - Features:
-     * User clustering using HDBSCAN
-     * Model training and validation
-     * Feature preprocessing
-     * Model persistence
-     * Cluster mapping management
-
-2. Database Layer
-----------------
-a) MongoDB:
-   - Collections:
-     * fraud_transactions: Stores detected fraudulent transactions
-     * legit_transactions: Stores legitimate transactions
-   - Indexes:
-     * Transaction_ID
-     * User_ID
-     * Date
-     * Fraud_Score
-
-b) Redis:
-   - Key-Value Storage:
-     * User features
-     * Transaction statistics
-     * Real-time counters
-   - Data Structures:
-     * Hashes: User profiles
-     * Sorted Sets: Transaction timestamps
-     * Lists: Suspicion buffers
-
-3. File Storage
---------------
-- transactions.csv: Historical transaction data
-- synthetic_txns.csv: Generated test transactions
-- fraud.csv: Known fraudulent transactions
-- fraud_scores_by_cluster.csv: Model performance metrics
-- user_feature_data.json: User behavior features
-- user_cluster_mapping.json: User-to-cluster assignments
-- cluster_models/: Directory containing trained models
-
-### Frontend Components
-
-1. Real-time Dashboard
----------------------
-a) Core Components:
-   - React-based SPA with TypeScript
-   - WebSocket integration for live updates
-   - Responsive design using Tailwind CSS
-   - Interactive charts using Chart.js
-   - Smooth animations with Framer Motion
-
-b) Key Features:
-   - Live transaction monitoring
-   - Real-time fraud score visualization
-   - Transaction statistics and trends
-   - Merchant and device type analysis
-   - Advanced search and filtering
-   - Historical data analysis
-
-2. User Interface
-----------------
-a) Main Dashboard:
-   - Transaction overview
-   - Fraud statistics
-   - Real-time alerts
-   - Performance metrics
-   - System status
-
-b) Analysis Tools:
-   - Transaction search
-   - Filtering options
-   - Data visualization
-   - Export capabilities
-   - Custom date ranges
-
-## Project Structure and File Organization
-
-
-### Directory Structure
----------------------
-```
-V.E.C.T.O.R/
-├── Backend/
-│   ├── cluster_models/           # Trained model files
-│   │   ├── cluster_*_bundle.pkl  # Cluster-specific models
-│   │   └── fallback_xgboost_model.joblib
-│   ├── __pycache__/             # Python cache files
-│   ├── consumer.py              # Main fraud detection engine
-│   ├── customproducer.py        # Streamlit interface
-│   ├── producer.py              # Synthetic data generator
-│   ├── trigger.py               # Model training and clustering
-│   ├── transactions.csv         # Historical transaction data
-│   ├── synthetic_txns.csv       # Generated test data
-│   ├── fraud.csv               # Known fraudulent transactions
-│   ├── fraud_scores_by_cluster.csv  # Model performance metrics
-│   ├── user_feature_data.json   # User behavior features
-│   └── user_cluster_mapping.json    # User-to-cluster assignments
-│
-├── Frontend/
-│   ├── public/                  # Static assets
-│   ├── src/
-│   │   ├── components/         # React components
-│   │   ├── context/           # React context providers
-│   │   ├── pages/             # Page components
-│   │   ├── types/             # TypeScript type definitions
-│   │   ├── App.tsx            # Main application component
-│   │   ├── main.tsx           # Application entry point
-│   │   └── socket.ts          # WebSocket configuration
-│   ├── server/                 # Frontend server code
-│   ├── node_modules/          # Node.js dependencies
-│   ├── package.json           # Node.js project configuration
-│   ├── tsconfig.json          # TypeScript configuration
-│   └── vite.config.ts         # Vite configuration
-│
-└── documentation.txt          # Project documentation
-```
-
-### Key File Descriptions
------------------------
-1. Backend Files:
-   - consumer.py: Core fraud detection logic
-   - trigger.py: Model training and clustering
-   - customproducer.py: Manual transaction interface
-   - producer.py: Synthetic data generation
-
-2. Frontend Files:
-   - App.tsx: Main application component
-   - Dashboard.tsx: Main dashboard view
-   - TransactionContext.tsx: State management
-   - ChartCard.tsx: Visualization components
-
-## Transaction Flow and Processing
-
-
-### 1. Transaction Lifecycle
---------------------------
-```
-[Transaction Input] → [Feature Extraction] → [Model Prediction] → [Result Storage]
-       ↑                      ↑                     ↑                    ↑
-       |                      |                     |                    |
-[Producer/API]        [Consumer Engine]      [ML Models]         [MongoDB/Redis]
-```
-
-### 2. Detailed Flow
-------------------
-1. Transaction Input:
-   ```
-   a) Real-time Input:
-      Producer/API → Redis Stream → Consumer
-   
-   b) Manual Input:
-      Streamlit UI → Custom Producer → Redis Stream → Consumer
-   ```
-
-2. Feature Processing:
-   ```
-   a) Static Features:
-      User Profile → Redis Cache → Feature Vector
-   
-   b) Dynamic Features:
-      Transaction Data → Feature Engineering → Feature Vector
-   ```
-
-3. Model Prediction:
-   ```
-   a) Cluster Assignment:
-      User ID → Cluster Map → Cluster-specific Model
-   
-   b) Score Calculation:
-      Feature Vector → Model → Fraud Score
-   
-   c) Result Classification:
-      Fraud Score → Threshold → Classification
-   ```
-
-4. Result Handling:
-   ```
-   a) Storage:
-      Classification → MongoDB Collections
-   
-   b) Caching:
-      User Stats → Redis Cache
-   
-   c) Real-time Updates:
-      Results → WebSocket → Frontend
-   ```
-
-## Mathematical Models and Formulas
-
-
-### 1. User Clustering (HDBSCAN)
------------------------------
-1. Distance Metric:
-   ```
-   d(x,y)  √(Σ(x_i - y_i)²)
-   where:
-   - x, y are feature vectors
-   - i represents feature dimensions
-   ```
-
-2. Density Calculation:
-   ```
-   ρ(x)  Σ K(d(x,y))
-   where:
-   - K is the kernel function
-   - d(x,y) is the distance between points
-   ```
-
-3. Cluster Formation:
-   ```
-   C  {x | ρ(x) ≥ ρ_min}
-   where:
-   - C is a cluster
-   - ρ_min is minimum density threshold
-   ```
-
-### 2. Fraud Detection (Isolation Forest)
--------------------------------------
-1. Anomaly Score:
-   ```
-   s(x)  2^(-E(h(x))/c(n))
-   where:
-   - h(x) is path length
-   - c(n) is average path length
-   - E is expected value
-   ```
-
-2. Path Length:
-   ```
-   h(x)  e + c(T.size)
-   where:
-   - e is number of edges
-   - c is correction factor
-   - T.size is tree size
-   ```
-
-3. Normalized Score:
-   ```
-   score(x)  (s(x) - s_min) / (s_max - s_min)
-   where:
-   - s_min is minimum score
-   - s_max is maximum score
-   ```
-
-### 3. Feature Engineering
------------------------
-1. Transaction Velocity:
-   ```
-   V  n / Δt
-   where:
-   - n is number of transactions
-   - Δt is time period
-   ```
-
-2. Large Transaction Detection:
-   ```
-   L  1 if amount > (μ + kσ)
-   where:
-   - μ is mean transaction amount
-   - σ is standard deviation
-   - k is threshold multiplier
-   ```
-
-3. User Behavior Score:
-   ```
-   B  Σ(w_i * f_i)
-   where:
-   - w_i are feature weights
-   - f_i are normalized features
-   ```
-
-### 4. Model Performance Metrics
-----------------------------
-1. Precision:
-   ```
-   P  TP / (TP + FP)
-   where:
-   - TP is true positives
-   - FP is false positives
-   ```
-
-2. Recall:
-   ```
-   R  TP / (TP + FN)
-   where:
-   - FN is false negatives
-   ```
-
-3. F1 Score:
-   ```
-   F1  2 * (P * R) / (P + R)
-   ```
-
-4. ROC-AUC:
-   ```
-   AUC  ∫ TPR d(FPR)
-   where:
-   - TPR is true positive rate
-   - FPR is false positive rate
-   ```
-
-### 5. Real-time Processing Metrics
--------------------------------
-1. Processing Latency:
-   ```
-   L  t_end - t_start
-   where:
-   - t_start is transaction receipt time
-   - t_end is prediction completion time
-   ```
-
-2. Throughput:
-   ```
-   T  n / Δt
-   where:
-   - n is number of processed transactions
-   - Δt is time period
-   ```
-
-3. Cache Hit Rate:
-   ```
-   H  hits / (hits + misses)
-   where:
-   - hits is cache hits
-   - misses is cache misses
-   ```
+---
 
 ## Technical Stack
 
+### Backend
+- **Language:** Python 3.x  
+- **Libraries:** `scikit-learn`, `xgboost`, `hdbscan`, `umap-learn`, `redis`, `pymongo`, `streamlit`  
+- **Databases:** MongoDB (6.0+), Redis (7.0+)
 
-### Backend Requirements
-----------------------
-1. Python 3.x
-2. Required Python Packages:
-   - scikit-learn1.3.0
-   - xgboost2.0.0
-   - redis5.0.1
-   - pymongo4.5.0
-   - streamlit1.28.0
-   - pandas2.1.1
-   - numpy1.24.3
-   - umap-learn0.5.4
-   - hdbscan0.8.33
-   - joblib1.3.2
+### Frontend
+- **Framework:** React 18 + TypeScript 5  
+- **Dependencies:** `chart.js`, `socket.io-client`, `framer-motion`, `axios`, `lucide-react`, `tailwindcss`  
 
-3. Database Requirements:
-   - MongoDB 6.0+
-   - Redis 7.0+
-
-### Frontend Requirements
------------------------
-1. Node.js 16+
-2. Required npm Packages:
-   - react18.2.0
-   - react-dom18.2.0
-   - typescript5.2.2
-   - tailwindcss3.3.3
-   - chart.js4.4.0
-   - socket.io-client4.7.2
-   - framer-motion10.16.4
-   - date-fns2.30.0
-   - axios1.6.2
-   - lucide-react0.294.0
+---
 
 ## Model Architecture
 
+### User Clustering
+- Algorithm: **HDBSCAN**  
+- Input: User behavioral feature matrix  
+- Output: Cluster assignments for adaptive fraud thresholds  
 
-### 1. User Clustering
----------------------
-a) Algorithm: HDBSCAN (Hierarchical Density-Based Spatial Clustering)
-   - Parameters:
-     * min_cluster_size: 5
-     * min_samples: 3
-     * metric: 'euclidean'
+### Fraud Detection
+- Cluster-specific model: **Isolation Forest**  
+- Fallback model: **XGBoost**  
+- Combined result: Weighted fraud confidence score  
 
-b) Clustering Features:
-   - Transaction Patterns:
-     * Average transaction amount
-     * Transaction frequency
-     * Session duration
-     * Active loan count
-   - Behavioral Patterns:
-     * Device usage distribution
-     * Merchant category preferences
-     * Time-based patterns
-     * Transaction velocity
+### Feature Pipeline
+- **Static Features:** demographic and device metadata  
+- **Dynamic Features:** transaction velocity, periodicity, and anomaly deviation  
 
-### 2. Fraud Detection Models
----------------------------
-a) Cluster-specific Models:
-   - Algorithm: Isolation Forest
-   - Parameters:
-     * contamination: 0.1
-     * n_estimators: 100
-     * random_state: 42
-   - Features:
-     * Transaction amount
-     * Session time
-     * Transaction velocity
-     * Large transaction flags
-     * Device type code
-     * Merchant type code
-     * Active loan count
-     * Transaction frequency
+---
 
-b) Fallback Model:
-   - Algorithm: XGBoost
-   - Parameters:
-     * max_depth: 6
-     * learning_rate: 0.1
-     * n_estimators: 100
-   - Features: Same as cluster models
-   - Purpose: Handle edge cases and new users
+## Directory Structure
+```
 
-### 3. Feature Engineering
-------------------------
-a) Static Features:
-   - User demographics
-   - Historical patterns
-   - Device preferences
-   - Merchant preferences
+V.E.C.T.O.R/
+├── Backend/
+│   ├── consumer.py
+│   ├── trigger.py
+│   ├── producer.py
+│   ├── customproducer.py
+│   ├── cluster_models/
+│   ├── transactions.csv
+│   ├── fraud_scores_by_cluster.csv
+│   ├── user_feature_data.json
+│   └── user_cluster_mapping.json
+│
+├── Frontend/
+│   ├── src/
+│   │   ├── components/
+│   │   ├── context/
+│   │   ├── pages/
+│   │   ├── types/
+│   │   ├── App.tsx
+│   │   ├── main.tsx
+│   │   └── socket.ts
+│   ├── public/
+│   ├── package.json
+│   ├── tsconfig.json
+│   └── vite.config.ts
+│
+└── docs/
+├── architecture-diagram.png
+├── system-overview.pdf
+└── demo-video.mp4
 
-b) Dynamic Features:
-   - Transaction velocity
-   - Average amount
-   - Large transaction frequency
-   - Session duration
-   - Device and merchant encoding
-   - Time-based patterns
+```
 
-## Setup Instructions
+---
 
+## Transaction Flow
+```
 
-### Prerequisites Installation
-----------------------------
-1. System Requirements:
-   ```bash
-   # Ubuntu/Debian
-   sudo apt update
-   sudo apt install python3-pip python3-venv nodejs npm mongodb redis-server
+[Producer/API] → [Redis Stream] → [Consumer Engine]
+→ [Feature Engineering] → [Model Prediction]
+→ [MongoDB] → [WebSocket Broadcast] → [Frontend Dashboard]
 
-   # Fedora
-   sudo dnf update
-   sudo dnf install python3-pip python3-venv nodejs npm mongodb-org redis
-   ```
+````
 
-2. Start Services:
-   ```bash
-   # Start MongoDB
-   sudo systemctl start mongod
-   sudo systemctl enable mongod
+- **Feature extraction:** Real-time velocity & behavioral vectorization  
+- **Model mapping:** Cluster-specific models allocated dynamically  
+- **Prediction output:** Fraud score visualization on live dashboard  
 
-   # Start Redis
-   sudo systemctl start redis
-   sudo systemctl enable redis
-   ```
+---
 
-### Backend Setup
----------------
-1. Create and activate virtual environment:
-   ```bash
-   python3 -m venv venv
-   source venv/bin/activate  # On Windows: venv\Scripts\activate
-   ```
+## Mathematical Concepts
+*(Public-safe redaction applied to proprietary formulations)*
 
-2. Install Python dependencies:
-   ```bash
-   pip install -r requirements.txt
-   ```
+1. **Velocity Computation:** `V = n / Δt`  
+2. **Anomaly Scoring:** Based on path length deviation  
+3. **Cluster Density:** Euclidean-based neighborhood measure  
+4. **Model Metrics:** Precision, Recall, F1, ROC-AUC  
 
-3. Initialize the models:
-   ```bash
-   python trigger.py
-   ```
+---
 
-4. Start backend services:
-   ```bash
-   # Start the consumer in one terminal
-   python consumer.py
+## Setup Guide
 
-   # Start the custom producer in another terminal
-   streamlit run customproducer.py
-   ```
+### Environment Setup
+```bash
+sudo apt install python3-pip nodejs npm mongodb redis-server
+````
 
-### Frontend Setup
-----------------
-1. Navigate to Frontend directory:
-   ```bash
-   cd Frontend
-   ```
+### Backend
 
-2. Install dependencies:
-   ```bash
-   npm install
-   ```
+```bash
+cd Backend
+python3 -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
+python trigger.py
+python consumer.py
+```
 
-3. Start development server:
-   ```bash
-   npm run dev
-   ```
+### Frontend
 
-## Usage Guide
+```bash
+cd Frontend
+npm install
+npm run dev
+```
 
+---
 
-### Real-time Monitoring
-----------------------
-1. Access Dashboard:
-   - Open browser and navigate to http://localhost:5173
-   - Login with credentials (if required)
+## Usage Instructions
 
-2. Monitor Transactions:
-   - View real-time transaction feed
-   - Check fraud scores
-   - Monitor system statistics
-   - Analyze trends
+### Live Monitoring
 
-3. Use Analysis Tools:
-   - Apply filters
-   - Search transactions
-   - Export data
-   - Generate reports
+* Visit: [http://localhost:5173](http://localhost:5173)
+* View transactions and fraud scores in real time
 
-### Manual Transaction Testing
----------------------------
-1. Access Streamlit Interface:
-   - Open browser and navigate to http://localhost:8501
-   - Login (if required)
+### Manual Testing
 
-2. Enter Transaction Details:
-   - User ID
-   - Amount
-   - Merchant category
-   - Device type
-   - Additional metadata
+* Access Streamlit UI: [http://localhost:8501](http://localhost:8501)
+* Input transaction parameters → receive risk classification
 
-3. View Results:
-   - Real-time fraud prediction
-   - Transaction history
-   - User statistics
+---
 
-## API Documentation
+## API Specification
 
+| Method | Route               | Description                      |
+| ------ | ------------------- | -------------------------------- |
+| `GET`  | `/api/transactions` | Retrieve transaction data        |
+| `GET`  | `/api/stats`        | System-level performance metrics |
+| `WS`   | `newTransaction`    | Real-time transaction events     |
+| `WS`   | `systemStatus`      | Backend status updates           |
 
-### REST Endpoints
-----------------
-1. Transaction Endpoints:
-   ```
-   GET /api/transactions
-   - Query Parameters:
-     * start_date: YYYY-MM-DD
-     * end_date: YYYY-MM-DD
-     * user_id: string
-     * min_amount: number
-     * max_amount: number
-   - Response: JSON array of transactions
-   ```
-
-2. Statistics Endpoints:
-   ```
-   GET /api/stats
-   - Response: JSON object with statistics
-   ```
-
-### WebSocket Events
-------------------
-1. Connection:
-   ```
-   Event: connect
-   - Establishes real-time connection
-   ```
-
-2. Transaction Events:
-   ```
-   Event: newTransaction
-   - Data: Transaction object
-   ```
-
-3. Status Events:
-   ```
-   Event: systemStatus
-   - Data: System status object
-   ```
+---
 
 ## Model Training
 
-
 ### Automatic Retraining
-----------------------
-1. Trigger Process:
-   ```bash
-   python trigger.py
-   ```
 
-2. Training Steps:
-   - Load historical data
-   - Preprocess features
-   - Update user clusters
-   - Train cluster models
-   - Validate performance
-   - Save updated models
+```bash
+python trigger.py
+```
+
+Updates clustering and re-trains models.
 
 ### Manual Retraining
--------------------
-1. Update Data:
-   - Modify transactions.csv
-   - Add new features
-   - Update user mappings
 
-2. Trigger Training:
-   ```bash
-   python trigger.py --force-retrain
-   ```
+```bash
+python trigger.py --force-retrain
+```
 
-3. Verify Results:
-   - Check model performance
-   - Validate predictions
-   - Update documentation
+For forced full-model refresh after data updates.
+
+---
 
 ## Performance Monitoring
 
+**Metrics**
 
-### Key Metrics
--------------
-1. Fraud Detection:
-   - Detection rate
-   - False positive rate
-   - Precision and recall
-   - F1 score
+* Latency (ms)
+* Throughput (transactions/sec)
+* Cache Hit Ratio
+* Fraud detection precision/recall
 
-2. System Performance:
-   - Transaction processing latency
-   - Model prediction time
-   - API response time
-   - WebSocket latency
+**Monitoring Tools**
 
-3. Resource Usage:
-   - CPU utilization
-   - Memory consumption
-   - Database performance
-   - Cache hit rate
+* Real-time dashboard charts
+* Performance and error logs
 
-### Monitoring Tools
-------------------
-1. Dashboard Metrics:
-   - Real-time statistics
-   - Performance graphs
-   - System status
-   - Error rates
+---
 
-2. Logging:
-   - Application logs
-   - Error logs
-   - Performance logs
-   - Security logs
+## Security Framework
 
-## Security
+**API Layer**
 
+* JWT authentication
+* API key enforcement
+* IP allowlisting
 
-### Authentication
-----------------
-1. API Security:
-   - JWT authentication
-   - API key validation
-   - Rate limiting
-   - IP whitelisting
+**Infrastructure**
 
-2. Data Security:
-   - Data encryption
-   - Secure storage
-   - Access control
-   - Audit logging
+* SSL/TLS encryption
+* Firewall controls
+* Scheduled backups
 
-### Best Practices
-----------------
-1. Code Security:
-   - Input validation
-   - SQL injection prevention
-   - XSS protection
-   - CSRF protection
-
-2. Infrastructure:
-   - Firewall configuration
-   - SSL/TLS encryption
-   - Regular updates
-   - Backup procedures
+---
 
 ## Troubleshooting
 
+| Issue              | Root Cause          | Fix                                 |
+| ------------------ | ------------------- | ----------------------------------- |
+| MongoDB error      | Service not running | `sudo systemctl start mongod`       |
+| Redis timeout      | Port conflict       | Restart Redis (port 6379)           |
+| Model load failure | Missing file        | Run `trigger.py`                    |
+| WebSocket error    | Network issue       | Validate backend port accessibility |
 
-### Common Issues
----------------
-1. MongoDB Connection:
-   ```
-   Error: Connection refused
-   Solution:
-   - Check MongoDB service status
-   - Verify connection string
-   - Check firewall settings
-   ```
+---
 
-2. Redis Connection:
-   ```
-   Error: Connection timeout
-   Solution:
-   - Verify Redis service status
-   - Check port availability
-   - Validate connection parameters
-   ```
+## Legal Notice
 
-3. Model Loading:
-   ```
-   Error: Model file not found
-   Solution:
-   - Check model directory
-   - Verify file permissions
-   - Re-run model training
-   ```
+```
+© 2025 RV College of Engineering and the listed inventors.
+Patent Application No: 202541077457 | Published: 3 October 2025
 
-4. Frontend Issues:
-   ```
-   Error: WebSocket connection failed
-   Solution:
-   - Check backend service
-   - Verify network connectivity
-   - Check firewall settings
-   ```
+This repository provides a redacted, non-functional demonstration
+of the patented V.E.C.T.O.R system for educational and evaluative purposes.
 
-### Debugging Tools
------------------
-1. Logging:
-   - Application logs
-   - Error logs
-   - Performance logs
-   - Security logs
+No license is granted for reproduction, modification, or derivative use.
+Any unauthorized use constitutes infringement under Indian patent law.
+```
 
-2. Monitoring:
-   - System metrics
-   - Performance graphs
-   - Error tracking
-   - User analytics
+````
+
+---
+
+## 📄 **LICENSE**
+```text
+All Rights Reserved © 2025  
+RV College of Engineering and the listed inventors.  
+
+Patent Application No: 202541077457  
+Published: 3 October 2025  
+Jurisdiction: India (The Patents Act, 1970)  
+
+Permission to view and share this repository for educational or evaluation
+purposes is granted. No license is provided for modification, redistribution,
+or derivative work in any form, physical or digital.
+````
