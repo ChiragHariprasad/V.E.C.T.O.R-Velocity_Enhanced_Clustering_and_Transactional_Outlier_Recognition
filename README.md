@@ -162,49 +162,6 @@ It merges machine learning, velocity-based clustering, and data-driven anomaly d
 4. **Model Metrics:** Precision, Recall, F1, ROC-AUC  
 
 ---
-
-## Setup Guide
-
-### Environment Setup
-```bash
-sudo apt install python3-pip nodejs npm mongodb redis-server
-````
-
-### Backend
-
-```bash
-cd Backend
-python3 -m venv venv
-source venv/bin/activate
-pip install -r requirements.txt
-python trigger.py
-python consumer.py
-```
-
-### Frontend
-
-```bash
-cd Frontend
-npm install
-npm run dev
-```
-
----
-
-## Usage Instructions
-
-### Live Monitoring
-
-* Visit: [http://localhost:5173](http://localhost:5173)
-* View transactions and fraud scores in real time
-
-### Manual Testing
-
-* Access Streamlit UI: [http://localhost:8501](http://localhost:8501)
-* Input transaction parameters → receive risk classification
-
----
-
 ## API Specification
 
 | Method | Route               | Description                      |
@@ -249,22 +206,6 @@ For forced full-model refresh after data updates.
 
 * Real-time dashboard charts
 * Performance and error logs
-
----
-
-## Security Framework
-
-**API Layer**
-
-* JWT authentication
-* API key enforcement
-* IP allowlisting
-
-**Infrastructure**
-
-* SSL/TLS encryption
-* Firewall controls
-* Scheduled backups
 
 ---
 
