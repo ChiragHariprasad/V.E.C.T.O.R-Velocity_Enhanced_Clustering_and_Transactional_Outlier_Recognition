@@ -26,11 +26,7 @@ V.E.C.T.O.R/
 │ ├── package.json
 │ ├── tsconfig.json
 │ └── vite.config.ts
-│
-└── docs/
-├── architecture-diagram.png
-├── system-overview.pdf
-└── demo-video.mp4
+
 ```
 
 ---
