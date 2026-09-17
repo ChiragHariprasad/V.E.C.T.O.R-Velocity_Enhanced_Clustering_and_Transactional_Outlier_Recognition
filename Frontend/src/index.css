@@ -7,14 +7,66 @@
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  color-scheme: dark;
+
+  /* --- DARK THEME (Default) --- */
+  --bg-base: #070b14;
+  --bg-surface: #0b1324;
+  --bg-elevated: #0e172a;
+  
+  --text-primary: #f1f5f9;
+  --text-secondary: #cbd5e1;
+  --text-muted: #94a3b8;
+  
+  --border-subtle: #172442;
+  --border-default: #1e2f54;
+  --border-strong: #334155;
+
+  --accent-primary: #f59e0b; /* V.E.C.T.O.R Gold */
+  --accent-primary-hover: #fbbf24;
+  
+  --risk-critical: #ef4444;
+  --risk-high: #f97316;
+  --risk-medium: #eab308;
+  --risk-low: #10b981;
+  
+  --network-cyan: #06b6d4;
+  --behavior-purple: #8b5cf6;
+  --success: #10b981;
+}
+
+[data-theme="light"] {
+  /* --- LIGHT THEME --- */
+  --bg-base: #f8fafc;
+  --bg-surface: #ffffff;
+  --bg-elevated: #f1f5f9;
+  
+  --text-primary: #0f172a;
+  --text-secondary: #334155;
+  --text-muted: #64748b;
+  
+  --border-subtle: #f1f5f9;
+  --border-default: #e2e8f0;
+  --border-strong: #cbd5e1;
+
+  --accent-primary: #d97706; /* Darker Gold for Light Theme */
+  --accent-primary-hover: #b45309;
+  
+  --risk-critical: #b91c1c;
+  --risk-high: #c2410c;
+  --risk-medium: #a16207;
+  --risk-low: #15803d;
+  
+  --network-cyan: #0891b2;
+  --behavior-purple: #7c3aed;
+  --success: #15803d;
 }
 
 body {
-  background-color: #070b14;
-  color: #f1f5f9;
+  background-color: var(--bg-base);
+  color: var(--text-primary);
   font-family: 'Inter', system-ui, -apple-system, sans-serif;
   overflow-x: hidden;
+  transition: background-color 0.3s ease, color 0.3s ease;
 }
 
 /* Custom scrollbar for dark theme */

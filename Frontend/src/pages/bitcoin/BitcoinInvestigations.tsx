@@ -8,16 +8,22 @@ import {
   User, 
   Tag,
   ChevronRight,
-  FolderOpen
+  FolderOpen,
+  Eye,
+  Users,
+  Target,
+  Layers,
+  Zap
 } from 'lucide-react';
 import { useBitcoin } from '../../context/BitcoinContext';
-import { BitcoinInvestigation, BitcoinRiskLead } from '../../types/bitcoin';
+import { BitcoinRiskLead } from '../../types/bitcoin';
 
 interface Props {
   initialLead?: BitcoinRiskLead | null;
+  onViewInvestigation?: (investigationId: string) => void;
 }
 
-const BitcoinInvestigations: React.FC<Props> = ({ initialLead }) => {
+const BitcoinInvestigations: React.FC<Props> = ({ initialLead, onViewInvestigation }) => {
   const { investigations, createInvestigation, entities } = useBitcoin();
   const [showNewModal, setShowNewModal] = useState(Boolean(initialLead));
   const [title, setTitle] = useState(initialLead ? `Investigation: ${initialLead.lead_id} (${initialLead.entity_id})` : '');
@@ -157,6 +163,8 @@ const BitcoinInvestigations: React.FC<Props> = ({ initialLead }) => {
         {investigations.map(inv => {
           const isCrit = inv.priority === 'CRITICAL';
           const isHigh = inv.priority === 'HIGH';
+          const isAuto = inv.created_by === 'V.E.C.T.O.R Auto';
+          const hasFullData = (inv.discovered_entities_count || 0) > 0 || (inv.leads_count || 0) > 0;
 
           return (
             <div key={inv.investigation_id} className="bg-[#0b1324]/90 rounded-2xl p-5 border border-[#172442] shadow-lg space-y-3">
@@ -172,21 +180,69 @@ const BitcoinInvestigations: React.FC<Props> = ({ initialLead }) => {
                       {inv.priority} PRIORITY
                     </span>
                     <span className="text-[10px] px-2 py-0.5 rounded bg-cyan-500/15 text-cyan-300 font-semibold border border-cyan-500/30">
-                      STATUS: {inv.status}
+                      STATUS: {inv.investigation_status || inv.status}
                     </span>
+                    {isAuto && (
+                      <span className="text-[10px] px-2 py-0.5 rounded bg-purple-500/15 text-purple-300 font-semibold border border-purple-500/30 flex items-center gap-1">
+                        <Zap className="w-2.5 h-2.5" /> AUTO
+                      </span>
+                    )}
                   </div>
                   <h3 className="text-sm font-bold text-white mt-1">{inv.title}</h3>
                 </div>
 
-                <div className="text-right text-xs text-gray-400 font-mono">
-                  <Clock className="w-3.5 h-3.5 inline mr-1 text-gray-500" />
-                  {inv.created_at ? new Date(inv.created_at).toLocaleDateString() : 'Active'}
+                <div className="flex items-center gap-2">
+                  {onViewInvestigation && (
+                    <button
+                      onClick={() => onViewInvestigation(inv.investigation_id)}
+                      className="inline-flex items-center text-xs font-semibold text-amber-400 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 px-3 py-1.5 rounded-lg transition-colors"
+                    >
+                      <Eye className="w-3.5 h-3.5 mr-1" /> View Investigation
+                    </button>
+                  )}
+                  <div className="text-right text-xs text-gray-400 font-mono">
+                    <Clock className="w-3.5 h-3.5 inline mr-1 text-gray-500" />
+                    {inv.created_at ? new Date(inv.created_at).toLocaleDateString() : 'Active'}
+                  </div>
                 </div>
               </div>
 
               <p className="text-xs text-gray-300 leading-relaxed bg-[#0e172a] p-3 rounded-xl border border-[#1b2b4d]">
                 {inv.description}
               </p>
+
+              {/* Investigation Stats (for auto-generated investigations) */}
+              {hasFullData && (
+                <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
+                  {[
+                    { label: 'Depth', value: `${inv.investigation_depth || 0} hops`, icon: Layers },
+                    { label: 'Entities', value: inv.discovered_entities_count || 0, icon: Users },
+                    { label: 'Transactions', value: inv.discovered_transactions_count || 0, icon: FileText },
+                    { label: 'Patterns', value: inv.detected_patterns_count || 0, icon: ShieldAlert },
+                    { label: 'Leads', value: inv.leads_count || 0, icon: Target },
+                  ].map((stat) => (
+                    <div key={stat.label} className="bg-[#0e172a] rounded-lg p-2 border border-[#1b2b4d] flex items-center gap-2">
+                      <stat.icon className="w-3.5 h-3.5 text-gray-400 shrink-0" />
+                      <div>
+                        <div className="text-[10px] text-gray-400">{stat.label}</div>
+                        <div className="text-xs font-bold text-white">{stat.value}</div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Trigger Reasons (for auto-generated investigations) */}
+              {inv.trigger_reasons && inv.trigger_reasons.length > 0 && inv.trigger_reasons[0] !== 'manual_investigation' && (
+                <div className="flex flex-wrap gap-1.5">
+                  <span className="text-[10px] text-gray-400 font-semibold mr-1">Triggers:</span>
+                  {inv.trigger_reasons.map((reason: string, ri: number) => (
+                    <span key={ri} className="text-[9px] px-2 py-0.5 rounded bg-red-500/10 text-red-300 border border-red-500/20 font-medium">
+                      {reason}
+                    </span>
+                  ))}
+                </div>
+              )}
 
               {inv.notes && (
                 <div className="text-xs text-amber-300 bg-amber-500/10 p-2.5 rounded-xl border border-amber-500/20">
@@ -196,12 +252,18 @@ const BitcoinInvestigations: React.FC<Props> = ({ initialLead }) => {
 
               <div className="flex justify-between items-center pt-2 text-xs text-gray-400 border-t border-[#172442]">
                 <div className="flex items-center gap-2">
-                  <span>Entities:</span>
-                  {inv.entities?.map(e => (
-                    <span key={e} className="font-mono font-semibold text-indigo-300 bg-indigo-500/15 border border-indigo-500/30 px-2 py-0.5 rounded text-[11px]">
-                      {e}
+                  <span>Seed Entity:</span>
+                  {inv.seed_entity_id ? (
+                    <span className="font-mono font-semibold text-indigo-300 bg-indigo-500/15 border border-indigo-500/30 px-2 py-0.5 rounded text-[11px]">
+                      {inv.seed_entity_id}
                     </span>
-                  ))}
+                  ) : (
+                    (inv.entities || []).map((e: string) => (
+                      <span key={e} className="font-mono font-semibold text-indigo-300 bg-indigo-500/15 border border-indigo-500/30 px-2 py-0.5 rounded text-[11px]">
+                        {e}
+                      </span>
+                    ))
+                  )}
                 </div>
                 <span className="text-gray-400">Created by: <strong className="text-gray-200">{inv.created_by}</strong></span>
               </div>
@@ -214,3 +276,4 @@ const BitcoinInvestigations: React.FC<Props> = ({ initialLead }) => {
 };
 
 export default BitcoinInvestigations;
+

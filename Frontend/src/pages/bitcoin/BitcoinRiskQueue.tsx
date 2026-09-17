@@ -5,7 +5,8 @@ import {
   ChevronRight, 
   Tag, 
   FilePlus,
-  CheckCircle
+  CheckCircle,
+  Crosshair
 } from 'lucide-react';
 import { useBitcoin } from '../../context/BitcoinContext';
 import { BitcoinRiskLead, BitcoinTransaction } from '../../types/bitcoin';
@@ -13,9 +14,10 @@ import { BitcoinRiskLead, BitcoinTransaction } from '../../types/bitcoin';
 interface Props {
   onSelectTx: (tx: BitcoinTransaction) => void;
   onCreateCase: (lead: BitcoinRiskLead) => void;
+  onInvestigate?: (lead: BitcoinRiskLead) => void;
 }
 
-const BitcoinRiskQueue: React.FC<Props> = ({ onSelectTx, onCreateCase }) => {
+const BitcoinRiskQueue: React.FC<Props> = ({ onSelectTx, onCreateCase, onInvestigate }) => {
   const { riskQueue, transactions } = useBitcoin();
   const [filterSeverity, setFilterSeverity] = useState('ALL');
   const [searchTerm, setSearchTerm] = useState('');
@@ -121,6 +123,14 @@ const BitcoinRiskQueue: React.FC<Props> = ({ onSelectTx, onCreateCase }) => {
                     >
                       <FilePlus className="w-3.5 h-3.5 mr-1 text-gray-900" /> Open Dossier
                     </button>
+                    {onInvestigate && (
+                      <button
+                        onClick={() => onInvestigate(lead)}
+                        className="inline-flex items-center text-xs font-semibold text-emerald-400 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/30 px-3 py-1.5 rounded-lg transition-colors"
+                      >
+                        <Crosshair className="w-3.5 h-3.5 mr-1" /> Investigate
+                      </button>
+                    )}
                   </div>
                 </div>
 

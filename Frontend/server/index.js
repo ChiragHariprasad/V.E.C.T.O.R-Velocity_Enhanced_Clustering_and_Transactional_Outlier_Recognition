@@ -221,6 +221,116 @@ app.get('/api/bitcoin/blocks/:height', async (req, res) => {
 });
 
 // 3. Transactions
+app.get('/api/bitcoin/search', async (req, res) => {
+  try {
+    const query = (req.query.q || '').trim();
+    if (!query) return res.json([]);
+    
+    // Determine type (very basic heuristic)
+    const isTxid = query.length === 64;
+    const isEntity = query.startsWith('ENT_BTC_');
+    const isAddress = query.startsWith('bc1') || query.startsWith('1') || query.startsWith('3') || query.length >= 26;
+
+    const results = [];
+    
+    if (isTxid || (!isEntity && !isAddress)) {
+      const txs = await db.collection('bitcoin_transactions').find({ 
+        txid: { $regex: query, $options: 'i' } 
+      }).limit(5).toArray();
+      txs.forEach(t => results.push({ type: 'transaction', id: t.txid, label: t.txid, subLabel: `₿ ${t.total_output_btc}`, risk: t.risk_level }));
+    }
+    
+    if (isEntity || (!isTxid && !isAddress)) {
+      const entities = await db.collection('bitcoin_entities').find({ 
+        entity_id: { $regex: query, $options: 'i' } 
+      }).limit(5).toArray();
+      entities.forEach(e => results.push({ type: 'entity', id: e.entity_id, label: e.entity_id, subLabel: `Cluster ${e.cluster_id || 0}`, risk: e.risk_level }));
+    }
+    
+    if (isAddress || (!isTxid && !isEntity)) {
+      const entitiesWithAddress = await db.collection('bitcoin_entities').find({
+        $or: [
+          { primary_address: { $regex: query, $options: 'i' } },
+          { addresses: { $regex: query, $options: 'i' } }
+        ]
+      }).limit(5).toArray();
+      entitiesWithAddress.forEach(e => results.push({ type: 'wallet', id: query, label: query, subLabel: `Entity: ${e.entity_id}`, risk: e.risk_level }));
+    }
+    
+    const investigations = await db.collection('bitcoin_investigations').find({
+      $or: [
+        { investigation_id: { $regex: query, $options: 'i' } },
+        { title: { $regex: query, $options: 'i' } }
+      ]
+    }).limit(3).toArray();
+    investigations.forEach(i => results.push({ type: 'investigation', id: i.investigation_id, label: i.investigation_id, subLabel: i.title, risk: i.risk_score > 75 ? 'CRITICAL' : 'HIGH' }));
+
+    res.json(results);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post('/api/bitcoin/wallets/:address/analyze', async (req, res) => {
+  try {
+    const addr = req.params.address;
+    
+    // 1. Resolve entity
+    const entity = await db.collection('bitcoin_entities').findOne({
+      $or: [{ primary_address: addr }, { addresses: addr }, { entity_id: addr }]
+    });
+
+    if (!entity) {
+      return res.status(404).json({ error: 'Address/Entity not found in intelligence database.' });
+    }
+
+    // 2. Fetch related transactions
+    const txs = await db.collection('bitcoin_transactions').find({
+      entity_id: entity.entity_id
+    }).sort({ timestamp: -1 }).limit(50).toArray();
+
+    // 3. Assemble intelligence report
+    const intelligence = {
+      address: addr,
+      entity: {
+        entity_id: entity.entity_id,
+        primary_address: entity.primary_address,
+        address_count: entity.addresses?.length || 1,
+        cluster_id: entity.cluster_id || 0,
+        anonymity_score: entity.anonymity_score || 0,
+        first_seen: entity.first_seen || txs[txs.length - 1]?.date,
+        last_seen: entity.last_seen || txs[0]?.date
+      },
+      behavior: {
+        velocity_1h: entity.velocity_1h || 0,
+        velocity_24h: entity.velocity_24h || 0,
+        total_volume_btc: entity.total_volume_btc || 0,
+        avg_tx_value: entity.avg_tx_value || 0,
+        counterparty_diversity: entity.unique_counterparties || 0
+      },
+      risk: {
+        score: entity.risk_score || 0,
+        level: entity.risk_level || 'LOW',
+        is_seed_illicit: entity.is_seed_illicit || false,
+        propagated_risk: entity.propagated_risk || 0,
+        components: {
+          ml_anomaly: entity.ml_anomaly_score || 0,
+          graph_risk: entity.graph_risk_score || 0,
+          velocity_signal: entity.velocity_risk || 0
+        }
+      },
+      transactions: txs,
+      patterns: entity.detected_patterns || [],
+      investigation_recommended: entity.risk_score >= 65 || (entity.detected_patterns?.length > 0)
+    };
+
+    // Simulate analysis delay for effect
+    setTimeout(() => res.json(intelligence), 1500);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 app.get('/api/bitcoin/transactions', async (req, res) => {
   try {
     const limit = parseInt(req.query.limit || '50', 10);
@@ -235,6 +345,19 @@ app.get('/api/bitcoin/transactions/:txid', async (req, res) => {
   try {
     const tx = await db.collection('bitcoin_transactions').findOne({ txid: req.params.txid });
     if (!tx) return res.status(404).json({ error: 'Transaction not found' });
+    
+    // Enrich with entity context
+    if (tx.entity_id) {
+      const entity = await db.collection('bitcoin_entities').findOne({ entity_id: tx.entity_id });
+      if (entity) {
+        tx.entity_context = {
+          risk_score: entity.risk_score,
+          cluster_id: entity.cluster_id,
+          patterns: entity.detected_patterns || []
+        };
+      }
+    }
+    
     res.json(tx);
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -256,7 +379,22 @@ app.get('/api/bitcoin/entity/:entity_id', async (req, res) => {
     const entity = await db.collection('bitcoin_entities').findOne({ entity_id: req.params.entity_id });
     if (!entity) return res.status(404).json({ error: 'Entity not found' });
     const txs = await db.collection('bitcoin_transactions').find({ entity_id: req.params.entity_id }).limit(20).toArray();
-    res.json({ entity, transactions: txs });
+    
+    // Enrich Entity
+    const enrichedEntity = {
+      ...entity,
+      risk_components: {
+        ml_anomaly: entity.ml_anomaly_score || 0,
+        graph_risk: entity.graph_risk_score || 0,
+        velocity_signal: entity.velocity_risk || 0
+      },
+      propagated_risk: entity.propagated_risk || 0,
+      patterns: entity.detected_patterns || [],
+      investigation_recommended: entity.risk_score >= 65,
+      connected_entities: [] // This could be populated by a graph query if needed
+    };
+    
+    res.json({ entity: enrichedEntity, transactions: txs });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -393,11 +531,36 @@ app.get('/api/bitcoin/clusters', async (req, res) => {
   }
 });
 
-// 8. Investigations
+// 8. Investigations — Extended with full investigation lifecycle
 app.get('/api/bitcoin/investigations', async (req, res) => {
   try {
-    const invs = await db.collection('bitcoin_investigations').find().sort({ _id: -1 }).toArray();
-    res.json(invs);
+    const invs = await db.collection('bitcoin_investigations').find().sort({ created_at: -1, _id: -1 }).toArray();
+    // Return summary view for listing
+    const summaries = invs.map(inv => ({
+      investigation_id: inv.investigation_id,
+      seed_entity_id: inv.seed_entity_id,
+      seed_transaction_id: inv.seed_transaction_id,
+      initial_risk_score: inv.initial_risk_score,
+      investigation_status: inv.investigation_status || inv.status || 'OPEN',
+      investigation_depth: inv.investigation_depth || 0,
+      trigger_reasons: inv.trigger_reasons || [],
+      created_at: inv.created_at,
+      discovered_entities_count: (inv.discovered_entities || []).length,
+      discovered_transactions_count: (inv.discovered_transactions || []).length,
+      detected_patterns_count: (inv.detected_patterns || []).length,
+      leads_count: (inv.final_leads || []).length,
+      // Backward compat with old simple investigations
+      title: inv.title || `Investigation: ${inv.investigation_id}`,
+      description: inv.description || (inv.trigger_reasons || []).join('; '),
+      priority: inv.priority || (inv.initial_risk_score >= 75 ? 'CRITICAL' : inv.initial_risk_score >= 50 ? 'HIGH' : 'MEDIUM'),
+      status: inv.investigation_status || inv.status || 'OPEN',
+      risk_score: inv.initial_risk_score || inv.risk_score || 0,
+      created_by: inv.created_by || 'V.E.C.T.O.R Auto',
+      entities: inv.discovered_entities || inv.entities || [],
+      transactions: inv.discovered_transactions || inv.transactions || [],
+      notes: inv.notes || '',
+    }));
+    res.json(summaries);
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -412,15 +575,96 @@ app.post('/api/bitcoin/investigations', async (req, res) => {
       description: body.description || '',
       priority: body.priority || 'MEDIUM',
       status: 'OPEN',
+      investigation_status: 'OPEN',
       risk_score: body.risk_score || 50,
-      created_by: body.created_by || 'Analyst Vinith',
+      initial_risk_score: body.risk_score || 50,
+      seed_entity_id: body.seed_entity_id || (body.entities || [])[0] || '',
+      seed_transaction_id: body.seed_txid || (body.transactions || [])[0] || '',
+      created_by: body.created_by || 'Analyst',
       created_at: new Date().toISOString(),
       entities: body.entities || [],
       transactions: body.transactions || [],
+      discovered_entities: body.entities || [],
+      discovered_transactions: body.transactions || [],
+      trigger_reasons: body.trigger_reasons || ['manual_investigation'],
+      investigation_depth: 0,
+      detected_patterns: [],
+      evidence: {},
+      final_leads: [],
+      flow_path: [],
+      graph_nodes: [],
+      graph_edges: [],
       notes: body.notes || ''
     };
     await db.collection('bitcoin_investigations').insertOne(newInv);
     res.status(201).json(newInv);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// 8a. Full Investigation Detail
+app.get('/api/bitcoin/investigations/:investigation_id', async (req, res) => {
+  try {
+    const inv = await db.collection('bitcoin_investigations').findOne({
+      investigation_id: req.params.investigation_id
+    });
+    if (!inv) return res.status(404).json({ error: 'Investigation not found' });
+    res.json(inv);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// 8b. Investigation Graph
+app.get('/api/bitcoin/investigations/:investigation_id/graph', async (req, res) => {
+  try {
+    const inv = await db.collection('bitcoin_investigations').findOne({
+      investigation_id: req.params.investigation_id
+    });
+    if (!inv) return res.status(404).json({ error: 'Investigation not found' });
+    res.json({
+      nodes: inv.graph_nodes || [],
+      edges: inv.graph_edges || [],
+      seed: inv.seed_entity_id,
+      max_depth: inv.investigation_depth || 3,
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// 8c. Investigation Flow Path
+app.get('/api/bitcoin/investigations/:investigation_id/flow', async (req, res) => {
+  try {
+    const inv = await db.collection('bitcoin_investigations').findOne({
+      investigation_id: req.params.investigation_id
+    });
+    if (!inv) return res.status(404).json({ error: 'Investigation not found' });
+    res.json({
+      seed_entity: inv.seed_entity_id,
+      seed_analysis: inv.seed_analysis || {},
+      flow_path: inv.flow_path || [],
+      evidence: inv.evidence || {},
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// 8d. Investigation Ranked Leads
+app.get('/api/bitcoin/investigations/:investigation_id/leads', async (req, res) => {
+  try {
+    const inv = await db.collection('bitcoin_investigations').findOne({
+      investigation_id: req.params.investigation_id
+    });
+    if (!inv) return res.status(404).json({ error: 'Investigation not found' });
+    res.json({
+      investigation_id: inv.investigation_id,
+      seed_entity: inv.seed_entity_id,
+      leads: inv.final_leads || [],
+      total_leads: (inv.final_leads || []).length,
+    });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }

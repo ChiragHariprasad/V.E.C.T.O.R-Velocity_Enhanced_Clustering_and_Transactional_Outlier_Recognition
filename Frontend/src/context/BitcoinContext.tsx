@@ -10,7 +10,15 @@ import {
   BitcoinClusterInfo,
   BitcoinStatus,
   GraphNode,
-  GraphEdge
+  GraphEdge,
+  InvestigationSummary,
+  InvestigationFull,
+  InvestigationGraphNode,
+  InvestigationGraphEdge,
+  InvestigationFlowStep,
+  InvestigationLead,
+  SearchResult,
+  WalletAnalysis
 } from '../types/bitcoin';
 
 const API_BASE = 'http://localhost:3001/api/bitcoin';
@@ -22,7 +30,7 @@ interface BitcoinContextType {
   entities: BitcoinEntity[];
   riskQueue: BitcoinRiskLead[];
   clusters: BitcoinClusterInfo[];
-  investigations: BitcoinInvestigation[];
+  investigations: InvestigationSummary[];
   selectedTx: BitcoinTransaction | null;
   setSelectedTx: (tx: BitcoinTransaction | null) => void;
   selectedEntity: BitcoinEntity | null;
@@ -32,6 +40,19 @@ interface BitcoinContextType {
   createInvestigation: (data: Partial<BitcoinInvestigation>) => Promise<void>;
   refreshAll: () => Promise<void>;
   isLoading: boolean;
+  // Investigation Engine
+  activeInvestigation: InvestigationFull | null;
+  investigationGraph: { nodes: InvestigationGraphNode[]; edges: InvestigationGraphEdge[] };
+  investigationFlow: InvestigationFlowStep[];
+  investigationLeads: InvestigationLead[];
+  fetchInvestigation: (id: string) => Promise<void>;
+  fetchInvestigationGraph: (id: string) => Promise<void>;
+  fetchInvestigationFlow: (id: string) => Promise<void>;
+  fetchInvestigationLeads: (id: string) => Promise<void>;
+  startInvestigation: (seed_entity_id?: string, seed_txid?: string) => Promise<void>;
+  // Global Search & Wallet Intel
+  search: (query: string) => Promise<SearchResult[]>;
+  analyzeWallet: (address: string) => Promise<WalletAnalysis | null>;
 }
 
 const defaultStatus: BitcoinStatus = {
@@ -65,7 +86,19 @@ const BitcoinContext = createContext<BitcoinContextType>({
   fetchGraph: async () => {},
   createInvestigation: async () => {},
   refreshAll: async () => {},
-  isLoading: true
+  isLoading: true,
+  // Investigation Engine
+  activeInvestigation: null,
+  investigationGraph: { nodes: [], edges: [] },
+  investigationFlow: [],
+  investigationLeads: [],
+  fetchInvestigation: async () => {},
+  fetchInvestigationGraph: async () => {},
+  fetchInvestigationFlow: async () => {},
+  fetchInvestigationLeads: async () => {},
+  startInvestigation: async () => {},
+  search: async () => [],
+  analyzeWallet: async () => null,
 });
 
 export const useBitcoin = () => useContext(BitcoinContext);
@@ -77,11 +110,16 @@ export const BitcoinProvider: React.FC<{ children: ReactNode }> = ({ children })
   const [entities, setEntities] = useState<BitcoinEntity[]>([]);
   const [riskQueue, setRiskQueue] = useState<BitcoinRiskLead[]>([]);
   const [clusters, setClusters] = useState<BitcoinClusterInfo[]>([]);
-  const [investigations, setInvestigations] = useState<BitcoinInvestigation[]>([]);
+  const [investigations, setInvestigations] = useState<InvestigationSummary[]>([]);
   const [selectedTx, setSelectedTx] = useState<BitcoinTransaction | null>(null);
   const [selectedEntity, setSelectedEntity] = useState<BitcoinEntity | null>(null);
   const [graphData, setGraphData] = useState<{ nodes: GraphNode[]; edges: GraphEdge[] }>({ nodes: [], edges: [] });
   const [isLoading, setIsLoading] = useState(true);
+  // Investigation Engine state
+  const [activeInvestigation, setActiveInvestigation] = useState<InvestigationFull | null>(null);
+  const [investigationGraph, setInvestigationGraph] = useState<{ nodes: InvestigationGraphNode[]; edges: InvestigationGraphEdge[] }>({ nodes: [], edges: [] });
+  const [investigationFlow, setInvestigationFlow] = useState<InvestigationFlowStep[]>([]);
+  const [investigationLeads, setInvestigationLeads] = useState<InvestigationLead[]>([]);
 
   const refreshAll = async () => {
     try {
@@ -161,6 +199,79 @@ export const BitcoinProvider: React.FC<{ children: ReactNode }> = ({ children })
     }
   };
 
+  // Investigation Engine methods
+  const fetchInvestigation = async (id: string) => {
+    try {
+      const res = await axios.get(`${API_BASE}/investigations/${id}`);
+      setActiveInvestigation(res.data);
+    } catch (e) {
+      console.error('Error loading investigation:', e);
+    }
+  };
+
+  const fetchInvestigationGraph = async (id: string) => {
+    try {
+      const res = await axios.get(`${API_BASE}/investigations/${id}/graph`);
+      setInvestigationGraph(res.data);
+    } catch (e) {
+      console.error('Error loading investigation graph:', e);
+    }
+  };
+
+  const fetchInvestigationFlow = async (id: string) => {
+    try {
+      const res = await axios.get(`${API_BASE}/investigations/${id}/flow`);
+      setInvestigationFlow(res.data.flow_path || []);
+    } catch (e) {
+      console.error('Error loading investigation flow:', e);
+    }
+  };
+
+  const fetchInvestigationLeads = async (id: string) => {
+    try {
+      const res = await axios.get(`${API_BASE}/investigations/${id}/leads`);
+      setInvestigationLeads(res.data.leads || []);
+    } catch (e) {
+      console.error('Error loading investigation leads:', e);
+    }
+  };
+
+  const startInvestigation = async (seed_entity_id?: string, seed_txid?: string) => {
+    try {
+      const res = await axios.post(`${API_BASE}/investigations`, {
+        title: `Auto Investigation: ${seed_entity_id || seed_txid}`,
+        seed_entity_id,
+        seed_txid,
+        entities: seed_entity_id ? [seed_entity_id] : [],
+        transactions: seed_txid ? [seed_txid] : [],
+        trigger_reasons: ['manual_investigation_request'],
+      });
+      setInvestigations(prev => [res.data, ...prev]);
+    } catch (e) {
+      console.error('Failed to start investigation:', e);
+    }
+  };
+
+  const search = async (query: string): Promise<SearchResult[]> => {
+    try {
+      const res = await axios.get(`${API_BASE}/search`, { params: { q: query } });
+      return res.data;
+    } catch (e) {
+      console.error('Search failed:', e);
+      return [];
+    }
+  };
+
+  const analyzeWallet = async (address: string): Promise<WalletAnalysis | null> => {
+    try {
+      const res = await axios.get(`${API_BASE}/wallets/${address}/analyze`);
+      return res.data;
+    } catch (e) {
+      console.error('Wallet analysis failed:', e);
+      return null;
+    }
+  };
+
   return (
     <BitcoinContext.Provider
       value={{
@@ -179,7 +290,19 @@ export const BitcoinProvider: React.FC<{ children: ReactNode }> = ({ children })
         fetchGraph,
         createInvestigation,
         refreshAll,
-        isLoading
+        isLoading,
+        // Investigation Engine
+        activeInvestigation,
+        investigationGraph,
+        investigationFlow,
+        investigationLeads,
+        fetchInvestigation,
+        fetchInvestigationGraph,
+        fetchInvestigationFlow,
+        fetchInvestigationLeads,
+        startInvestigation,
+        search,
+        analyzeWallet,
       }}
     >
       {children}

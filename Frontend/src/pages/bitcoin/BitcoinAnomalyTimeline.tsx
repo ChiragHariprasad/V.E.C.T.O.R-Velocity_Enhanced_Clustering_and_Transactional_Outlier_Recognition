@@ -39,38 +39,49 @@ const BitcoinAnomalyTimeline: React.FC = () => {
   const chartOptions = {
     responsive: true,
     maintainAspectRatio: false,
+    color: '#cbd5e1',
     scales: {
+      x: {
+        grid: { color: 'rgba(255, 255, 255, 0.05)' },
+        ticks: { color: '#94a3b8' }
+      },
       yRisk: {
         type: 'linear' as const,
         position: 'left' as const,
         max: 100,
         min: 0,
-        title: { display: true, text: 'Risk Score (0-100)' }
+        grid: { color: 'rgba(255, 255, 255, 0.05)' },
+        ticks: { color: '#ef4444' },
+        title: { display: true, text: 'Risk Score (0-100)', color: '#ef4444' }
       },
       yVol: {
         type: 'linear' as const,
         position: 'right' as const,
         grid: { drawOnChartArea: false },
-        title: { display: true, text: 'BTC Volume' }
+        ticks: { color: '#f59e0b' },
+        title: { display: true, text: 'BTC Volume', color: '#f59e0b' }
       }
+    },
+    plugins: {
+      legend: { labels: { color: '#f1f5f9' } }
     }
   };
 
   return (
     <div className="space-y-6">
-      <div className="bg-white rounded-xl p-5 border border-gray-100 shadow-sm flex justify-between items-center">
+      <div className="bg-[var(--bg-surface)] rounded-xl p-5 border border-[var(--border-subtle)] shadow-sm flex justify-between items-center transition-colors duration-300">
         <div>
-          <h2 className="text-lg font-bold text-gray-900 flex items-center gap-2">
-            <TrendingUp className="w-5 h-5 text-amber-500" />
+          <h2 className="text-lg font-bold text-[var(--text-primary)] flex items-center gap-2">
+            <TrendingUp className="w-5 h-5 text-[var(--accent-primary)]" />
             Behavioral Anomaly & Temporal Deviation Timeline
           </h2>
-          <p className="text-xs text-gray-500">Historical deviation tracking comparing baseline behavioral norms against sudden burst and risk spikes</p>
+          <p className="text-xs text-[var(--text-muted)]">Historical deviation tracking comparing baseline behavioral norms against sudden burst and risk spikes</p>
         </div>
       </div>
 
-      <div className="bg-white rounded-xl p-6 border border-gray-100 shadow-sm">
+      <div className="bg-[var(--bg-surface)] rounded-xl p-6 border border-[var(--border-subtle)] shadow-sm">
         <div className="h-80">
-          <Line data={timelineData} options={chartOptions} />
+          <Line data={timelineData} options={chartOptions as any} />
         </div>
       </div>
     </div>

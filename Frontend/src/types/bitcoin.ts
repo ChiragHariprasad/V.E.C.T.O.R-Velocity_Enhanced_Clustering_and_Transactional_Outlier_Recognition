@@ -148,3 +148,183 @@ export interface GraphEdge {
   edge_type: string;
   value_btc?: number;
 }
+
+// ===== Investigation Engine Types =====
+
+export interface InvestigationSummary {
+  investigation_id: string;
+  seed_entity_id: string;
+  seed_transaction_id: string;
+  initial_risk_score: number;
+  investigation_status: 'OPEN' | 'ANALYZING' | 'COMPLETED' | 'REVIEWED';
+  investigation_depth: number;
+  trigger_reasons: string[];
+  created_at: string;
+  discovered_entities_count: number;
+  discovered_transactions_count: number;
+  detected_patterns_count: number;
+  leads_count: number;
+  // Backward compat
+  title: string;
+  description: string;
+  priority: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
+  status: string;
+  risk_score: number;
+  created_by: string;
+  entities: string[];
+  transactions: string[];
+  notes: string;
+}
+
+export interface InvestigationFlowStep {
+  source_entity: string;
+  destination_entity: string;
+  via_address: string;
+  transaction_id: string;
+  amount: number;
+  timestamp: number;
+  hop: number;
+  forwarding_ratio: number;
+  cumulative_flow: number;
+  pct_of_seed: number;
+  expansion_reasons: string[];
+}
+
+export interface InvestigationPattern {
+  pattern_type: string;
+  involved_entities: string[];
+  involved_transactions: string[];
+  confidence: string;
+  severity: number;
+  evidence: string;
+  hop: number;
+  timestamp_range: { start: number; end: number };
+}
+
+export interface InvestigationLead {
+  entity_id: string;
+  priority: 'P1' | 'P2' | 'P3' | 'P4';
+  risk_label: 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW';
+  composite_score: number;
+  direct_risk: number;
+  propagated_risk: number;
+  role: string;
+  reasons: string[];
+  evidence_summary: {
+    tx_count: number;
+    connected_entities: number;
+    detected_patterns: number;
+    downstream_hops: number;
+    total_flow_btc: number;
+  };
+}
+
+export interface InvestigationGraphNode {
+  id: string;
+  label: string;
+  type: string;
+  role: string;
+  risk_score: number;
+  direct_risk: number;
+  propagated_risk: number;
+  tx_count: number;
+  is_seed: boolean;
+  investigation_relevance: number;
+}
+
+export interface InvestigationGraphEdge {
+  source: string;
+  target: string;
+  transaction_id: string;
+  amount: number;
+  timestamp: number;
+  hop: number;
+  flow_percentage: number;
+  pattern_association: string;
+  edge_type: string;
+}
+
+export interface InvestigationEvidence {
+  trigger: string[];
+  flow_evidence: {
+    seed_amount: number;
+    downstream_amount: number;
+    hop_count: number;
+    forwarding_ratio: number;
+    total_flow_steps: number;
+  };
+  patterns: string[];
+  entity_evidence: {
+    total_discovered: number;
+    total_transactions: number;
+    total_leads: number;
+    highest_lead_score: number;
+  };
+  risk_propagation: {
+    seed_entity: string;
+    propagation_depth: number;
+  };
+}
+
+export interface InvestigationFull {
+  investigation_id: string;
+  seed_transaction_id: string;
+  seed_entity_id: string;
+  initial_risk_score: number;
+  trigger_reasons: string[];
+  created_at: string;
+  investigation_status: string;
+  investigation_depth: number;
+  discovered_entities: string[];
+  discovered_transactions: string[];
+  detected_patterns: InvestigationPattern[];
+  evidence: InvestigationEvidence;
+  final_leads: InvestigationLead[];
+  seed_analysis: Record<string, any>;
+  flow_path: InvestigationFlowStep[];
+  graph_nodes: InvestigationGraphNode[];
+  graph_edges: InvestigationGraphEdge[];
+  risk_propagation_results: Record<string, any>;
+}
+
+export interface SearchResult {
+  type: 'auto' | 'address' | 'txid' | 'entity' | 'wallet' | 'transaction' | 'investigation';
+  id: string;
+  label: string;
+  subLabel?: string;
+  risk?: string;
+}
+
+export interface WalletAnalysis {
+  address: string;
+  entity: {
+    entity_id: string;
+    primary_address: string;
+    address_count: number;
+    cluster_id: number;
+    anonymity_score: number;
+    first_seen: string;
+    last_seen: string;
+  };
+  behavior: {
+    velocity_1h: number;
+    velocity_24h: number;
+    total_volume_btc: number;
+    avg_tx_value: number;
+    counterparty_diversity: number;
+  };
+  risk: {
+    score: number;
+    level: string;
+    is_seed_illicit: boolean;
+    propagated_risk: number;
+    components: {
+      ml_anomaly: number;
+      graph_risk: number;
+      velocity_signal: number;
+    };
+  };
+  transactions: BitcoinTransaction[];
+  patterns: string[];
+  investigation_recommended: boolean;
+}

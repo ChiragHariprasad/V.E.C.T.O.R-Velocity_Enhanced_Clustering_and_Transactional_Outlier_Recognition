@@ -57,6 +57,14 @@ COLL_INVESTIGATIONS = "bitcoin_investigations"
 GRAPH_MAX_HOPS = int(os.getenv("GRAPH_MAX_HOPS", "3"))
 ENABLE_GRAPH_EMBEDDINGS = os.getenv("ENABLE_GRAPH_EMBEDDINGS", "false").lower() == "true"
 
+# ========== Investigation Engine Settings ==========
+INVESTIGATION_THRESHOLD = float(os.getenv("INVESTIGATION_THRESHOLD", "70"))
+MAX_INVESTIGATION_DEPTH = int(os.getenv("MAX_INVESTIGATION_DEPTH", "3"))
+MAX_INVESTIGATION_ENTITIES = int(os.getenv("MAX_INVESTIGATION_ENTITIES", "100"))
+INVESTIGATION_FLOW_SIGNIFICANCE = float(os.getenv("INVESTIGATION_FLOW_SIGNIFICANCE", "0.05"))
+INVESTIGATION_RAPID_FORWARD_SEC = int(os.getenv("INVESTIGATION_RAPID_FORWARD_SEC", "600"))
+INVESTIGATION_MULTI_SIGNAL_MIN = int(os.getenv("INVESTIGATION_MULTI_SIGNAL_MIN", "3"))
+
 # ========== Multi-Model Risk Engine Weights & Thresholds ==========
 RISK_WEIGHT_ML = float(os.getenv("RISK_WEIGHT_ML", "0.30"))
 RISK_WEIGHT_GRAPH = float(os.getenv("RISK_WEIGHT_GRAPH", "0.20"))

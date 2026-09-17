@@ -29,6 +29,7 @@ from bitcoin.utxo_manager import UTXOManager
 from bitcoin.ip_correlator import IPWalletCorrelator
 from bitcoin.risk_propagation import RiskPropagationEngine
 from bitcoin.schemas import BITCOIN_FEATURE_KEYS
+from bitcoin.investigation_engine import InvestigationTrigger, InvestigationEngine
 
 logger = logging.getLogger("VECTOR.BulkIngest")
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(name)s] %(message)s")
@@ -238,6 +239,7 @@ class BulkIngestPipeline:
 
         self.processed_txs: List[Dict[str, Any]] = []
         self.alert_queue: List[Dict[str, Any]] = []
+        self.investigations: List[Dict[str, Any]] = []
 
     def ingest(self, transactions: List[Dict[str, Any]]) -> Dict[str, Any]:
         """
@@ -379,6 +381,10 @@ class BulkIngestPipeline:
         # Sort alert queue by risk score
         self.alert_queue.sort(key=lambda x: x["risk_score"], reverse=True)
 
+        # Phase 6: Automatic Investigation Trigger
+        logger.info("Phase 6/6: Running automatic investigation engine...")
+        self._run_auto_investigations(transactions)
+
         # Persist to MongoDB
         if self.db is not None:
             self._persist_results()
@@ -388,13 +394,65 @@ class BulkIngestPipeline:
         logger.info(f"✅ Bulk ingestion complete in {elapsed:.1f}s")
         return summary
 
+    def _run_auto_investigations(self, transactions: List[Dict[str, Any]]):
+        """Phase 6: Automatically create and run investigations for high-risk entities."""
+        trigger = InvestigationTrigger()
+        investigated_entities = set()
+
+        for tx in self.processed_txs:
+            entity_id = tx.get("entity_id", "")
+            if entity_id in investigated_entities:
+                continue
+
+            # Build risk output structure from enriched transaction
+            risk_output = {
+                "risk_score": tx.get("risk_score", 0),
+                "signals": tx.get("signals", []),
+                "components": tx.get("risk_components", {}),
+                "propagated_risk": tx.get("propagated_risk", 0.0),
+            }
+
+            should_investigate, trigger_reasons = trigger.should_investigate(risk_output)
+            if not should_investigate:
+                continue
+
+            investigated_entities.add(entity_id)
+
+            try:
+                engine = InvestigationEngine(
+                    graph=self.graph,
+                    entity_profiler=self.entity_profiler,
+                    risk_engine=self.risk_engine,
+                    utxo_manager=self.utxo_mgr,
+                    processed_txs=self.processed_txs,
+                )
+
+                inv = engine.create_investigation(
+                    seed_txid=tx.get("txid"),
+                    seed_entity_id=entity_id,
+                    risk_output=risk_output,
+                    trigger_reasons=trigger_reasons,
+                )
+                inv = engine.run_investigation(inv)
+                self.investigations.append(inv)
+
+                logger.info(
+                    f"   🔍 Auto-investigation {inv['investigation_id']}: "
+                    f"{len(inv.get('discovered_entities', []))} entities, "
+                    f"{len(inv.get('final_leads', []))} leads"
+                )
+            except Exception as e:
+                logger.warning(f"   ⚠️ Investigation failed for entity {entity_id}: {e}")
+
+        logger.info(f"   Created {len(self.investigations)} auto-investigations")
+
     def _persist_results(self):
         """Persist processed transactions, entities, and alerts to MongoDB."""
         logger.info("   Persisting to MongoDB...")
 
         # Clear existing bitcoin data
         for coll_name in ["bitcoin_transactions", "bitcoin_entities", "bitcoin_risk_events",
-                          "bitcoin_blocks", "bitcoin_ip_correlations"]:
+                          "bitcoin_blocks", "bitcoin_ip_correlations", "bitcoin_investigations"]:
             self.db[coll_name].delete_many({})
 
         # Insert transactions
@@ -457,8 +515,18 @@ class BulkIngestPipeline:
             "status": "confirmed",
         })
 
+        # Insert investigations
+        if self.investigations:
+            # Clean investigation data for MongoDB (convert sets to lists etc)
+            clean_invs = []
+            for inv in self.investigations:
+                clean = {k: v for k, v in inv.items() if k != "_id"}
+                clean_invs.append(clean)
+            self.db["bitcoin_investigations"].insert_many(clean_invs)
+
         logger.info(f"   Persisted {len(self.processed_txs)} txs, "
-                     f"{len(entity_map)} entities, {len(self.alert_queue)} alerts")
+                     f"{len(entity_map)} entities, {len(self.alert_queue)} alerts, "
+                     f"{len(self.investigations)} investigations")
 
     def _build_summary(self, elapsed: float) -> Dict[str, Any]:
         """Build ingestion summary."""
@@ -475,9 +543,22 @@ class BulkIngestPipeline:
         prop_summary = self.risk_propagation.get_propagation_summary()
         corr_summary = self.ip_correlator.get_correlation_summary()
 
+        # Investigation summary
+        inv_summary = []
+        for inv in self.investigations:
+            inv_summary.append({
+                "investigation_id": inv.get("investigation_id"),
+                "seed_entity_id": inv.get("seed_entity_id"),
+                "status": inv.get("investigation_status"),
+                "depth": inv.get("investigation_depth", 0),
+                "discovered_entities": len(inv.get("discovered_entities", [])),
+                "leads": len(inv.get("final_leads", [])),
+            })
+
         return {
             "total_transactions": len(self.processed_txs),
             "total_alerts": len(self.alert_queue),
+            "total_investigations": len(self.investigations),
             "elapsed_seconds": round(elapsed, 2),
             "pattern_distribution": pattern_counts,
             "risk_distribution": risk_distribution,
@@ -489,6 +570,7 @@ class BulkIngestPipeline:
                 "cross_entity_links": corr_summary["cross_entity_ip_links"],
             },
             "top_alerts": self.alert_queue[:10],
+            "investigations": inv_summary,
         }
 
     def get_alert_queue(self) -> List[Dict[str, Any]]:

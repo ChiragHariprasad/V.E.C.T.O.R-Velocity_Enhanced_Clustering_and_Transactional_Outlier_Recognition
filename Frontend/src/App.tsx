@@ -1,11 +1,24 @@
 import React, { useEffect, useState } from 'react';
+import { Routes, Route, Navigate } from 'react-router-dom';
 import { socket } from './socket';
 import Header from './components/Header';
 import Dashboard from './pages/Dashboard';
 import BitcoinDashboard from './pages/bitcoin/BitcoinDashboard';
+import BitcoinTransactionExplorer from './pages/bitcoin/BitcoinTransactionExplorer';
+import BitcoinInvestigationView from './pages/bitcoin/BitcoinInvestigationView';
+import WalletIntelligence from './pages/bitcoin/WalletIntelligence';
 import { TransactionProvider } from './context/TransactionContext';
 import { BitcoinProvider } from './context/BitcoinContext';
+import { ThemeProvider } from './context/ThemeContext';
 import LoadingScreen from './components/LoadingScreen';
+import { useParams, useNavigate } from 'react-router-dom';
+
+const InvestigationRoute = () => {
+  const { id } = useParams<{ id: string }>();
+  const navigate = useNavigate();
+  if (!id) return null;
+  return <BitcoinInvestigationView investigationId={id} onBack={() => navigate('/bitcoin/investigations')} />;
+};
 
 function App() {
   const [isConnected, setIsConnected] = useState(false);
@@ -42,10 +55,11 @@ function App() {
   }
 
   return (
-    <TransactionProvider>
-      <BitcoinProvider>
-        <div className="min-h-screen bg-[#070b14] text-slate-100 font-sans selection:bg-amber-500 selection:text-black">
-          <Header 
+    <ThemeProvider>
+      <TransactionProvider>
+        <BitcoinProvider>
+          <div className="min-h-screen bg-[var(--bg-base)] text-[var(--text-primary)] font-sans selection:bg-[var(--accent-primary)] selection:text-white transition-colors duration-300">
+            <Header
             isConnected={isConnected} 
             activeDomain={activeDomain}
             onDomainChange={setActiveDomain}
@@ -54,7 +68,33 @@ function App() {
           />
           <main className="px-4 sm:px-6 py-5 max-w-[1720px] mx-auto">
             {activeDomain === 'bitcoin' ? (
-              <BitcoinDashboard />
+              <Routes>
+                <Route path="/" element={<Navigate to="/bitcoin" replace />} />
+                <Route path="/live" element={<Navigate to="/bitcoin/live" replace />} />
+                <Route path="/explorer" element={<Navigate to="/bitcoin/explorer" replace />} />
+                <Route path="/entities" element={<Navigate to="/bitcoin/entities" replace />} />
+                <Route path="/risk" element={<Navigate to="/bitcoin/risk" replace />} />
+                <Route path="/graph" element={<Navigate to="/bitcoin/graph" replace />} />
+                <Route path="/clusters" element={<Navigate to="/bitcoin/clusters" replace />} />
+                <Route path="/timeline" element={<Navigate to="/bitcoin/timeline" replace />} />
+                <Route path="/investigations" element={<Navigate to="/bitcoin/investigations" replace />} />
+                <Route path="/bitcoin" element={<BitcoinDashboard />} />
+                <Route path="/bitcoin/live" element={<BitcoinDashboard initialTab="live" />} />
+                <Route path="/bitcoin/explorer" element={<BitcoinDashboard initialTab="explorer" />} />
+                <Route path="/bitcoin/entities" element={<BitcoinDashboard initialTab="entities" />} />
+                <Route path="/bitcoin/risk" element={<BitcoinDashboard initialTab="risk" />} />
+                <Route path="/bitcoin/graph" element={<BitcoinDashboard initialTab="graph" />} />
+                <Route path="/bitcoin/clusters" element={<BitcoinDashboard initialTab="clusters" />} />
+                <Route path="/bitcoin/timeline" element={<BitcoinDashboard initialTab="timeline" />} />
+                <Route path="/bitcoin/investigations" element={<BitcoinDashboard initialTab="investigations" />} />
+                <Route path="/bitcoin/models" element={<BitcoinDashboard initialTab="models" />} />
+                <Route path="/bitcoin/sources" element={<BitcoinDashboard initialTab="sources" />} />
+                <Route path="/bitcoin/settings" element={<BitcoinDashboard initialTab="settings" />} />
+                <Route path="/bitcoin/investigations/:id" element={<InvestigationRoute />} />
+                <Route path="/bitcoin/wallet/:id" element={<WalletIntelligence />} />
+                <Route path="/bitcoin/transactions/:txid" element={<BitcoinTransactionExplorer />} />
+                <Route path="*" element={<Navigate to="/bitcoin" replace />} />
+              </Routes>
             ) : (
               <Dashboard />
             )}
@@ -69,6 +109,7 @@ function App() {
         </div>
       </BitcoinProvider>
     </TransactionProvider>
+    </ThemeProvider>
   );
 }
 

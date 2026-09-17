@@ -4,12 +4,13 @@ import {
   Coins, 
   CreditCard, 
   Search, 
-  Bell, 
   CheckCircle2,
   TrendingUp
 } from 'lucide-react';
 import { useTransactions } from '../context/TransactionContext';
 import { useBitcoin } from '../context/BitcoinContext';
+import ThemeToggle from './ThemeToggle';
+import SearchOverlay from './SearchOverlay';
 
 interface HeaderProps {
   isConnected: boolean;
@@ -28,9 +29,22 @@ const Header: React.FC<HeaderProps> = ({
 }) => {
   const { stats } = useTransactions();
   const { status: btcStatus } = useBitcoin();
+  const [isSearchOpen, setIsSearchOpen] = React.useState(false);
+
+  // Keyboard shortcut (cmd+k or ctrl+k)
+  React.useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+        e.preventDefault();
+        setIsSearchOpen(true);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
 
   return (
-    <header className="bg-[#080d1a]/95 backdrop-blur-md border-b border-[#152037] sticky top-0 z-40 px-5 py-2.5">
+    <header className="bg-[var(--bg-surface)]/95 backdrop-blur-md border-b border-[var(--border-subtle)] sticky top-0 z-40 px-5 py-2.5 transition-colors duration-300">
       <div className="flex items-center justify-between gap-4">
         {/* Left: V.E.C.T.O.R Logo & SIH Badge */}
         <div className="flex items-center gap-3">
@@ -84,21 +98,23 @@ const Header: React.FC<HeaderProps> = ({
         <div className="flex items-center gap-3.5">
           {/* Search Bar */}
           <div className="relative hidden lg:block w-72">
-            <Search className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => onSearchChange?.(e.target.value)}
-              placeholder="Search TXID, entity, or address..."
-              className="w-full bg-[#0d1527] border border-[#1b2742] focus:border-amber-500/60 focus:ring-1 focus:ring-amber-500/40 rounded-xl pl-9 pr-3 py-1.5 text-xs text-gray-200 placeholder-gray-500 outline-none transition-all"
-            />
+            <Search className="w-4 h-4 text-[var(--text-muted)] absolute left-3 top-1/2 -translate-y-1/2" />
+            <button
+              onClick={() => setIsSearchOpen(true)}
+              className="w-full bg-[var(--bg-elevated)] border border-[var(--border-subtle)] hover:border-[var(--accent-primary)]/40 rounded-xl pl-9 pr-3 py-1.5 text-xs text-left text-[var(--text-muted)] outline-none transition-all flex items-center justify-between group"
+            >
+              <span>Search intelligence...</span>
+              <div className="flex items-center gap-1 opacity-70 group-hover:opacity-100">
+                <span className="px-1 py-0.5 rounded border border-[var(--border-subtle)] text-[9px] font-mono">⌘</span>
+                <span className="px-1 py-0.5 rounded border border-[var(--border-subtle)] text-[9px] font-mono">K</span>
+              </div>
+            </button>
           </div>
 
-          {/* Notification Bell */}
-          <button className="relative p-2 rounded-xl bg-[#0d1527] border border-[#1b2742] text-gray-300 hover:text-white hover:border-gray-600 transition-all">
-            <Bell className="w-4 h-4" />
-            <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full ring-2 ring-[#080d1a]"></span>
-          </button>
+          <SearchOverlay isOpen={isSearchOpen} onClose={() => setIsSearchOpen(false)} />
+
+          <ThemeToggle />
+
 
           {/* Analyst Profile Avatar */}
           <div className="flex items-center gap-2.5 pl-2 border-l border-[#1b2742]">
