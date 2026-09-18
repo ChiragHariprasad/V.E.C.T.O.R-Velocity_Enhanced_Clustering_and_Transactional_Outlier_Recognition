@@ -9,7 +9,8 @@ import {
   Clock, 
   ArrowUpRight,
   ChevronRight,
-  ExternalLink
+  ExternalLink,
+  Eye
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useBitcoin } from '../../context/BitcoinContext';
@@ -28,9 +29,9 @@ const BitcoinAddressEntityExplorer: React.FC<Props> = ({ onSelectTx, onOpenGraph
   const entity = selectedEntity || entities[0];
 
   const filteredEntities = entities.filter(e => 
-    e.entity_id.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    e.primary_address.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    e.addresses.some(a => a.toLowerCase().includes(searchTerm.toLowerCase()))
+    (e?.entity_id || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+    (e?.primary_address || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+    (e?.addresses || []).some(a => (a || '').toLowerCase().includes(searchTerm.toLowerCase()))
   );
 
   const entityTxs = transactions.filter(t => t.entity_id === entity?.entity_id);
@@ -72,18 +73,18 @@ const BitcoinAddressEntityExplorer: React.FC<Props> = ({ onSelectTx, onOpenGraph
               <div className="flex justify-between items-center mb-1">
                 <span className="font-mono font-bold text-[var(--text-primary)]">{e.entity_id}</span>
                 <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
-                  e.risk_level === 'CRITICAL' ? 'bg-danger-100 text-danger-800' :
-                  e.risk_level === 'HIGH' ? 'bg-orange-100 text-orange-800' :
-                  e.risk_level === 'MEDIUM' ? 'bg-warning-100 text-warning-800' :
-                  'bg-success-100 text-success-800'
+                  e.risk_level === 'CRITICAL' ? 'bg-[var(--risk-critical)]/20 text-[var(--risk-critical)] border border-[var(--risk-critical)]/40' :
+                  e.risk_level === 'HIGH' ? 'bg-orange-500/20 text-orange-500 border border-orange-500/40' :
+                  e.risk_level === 'MEDIUM' ? 'bg-amber-500/20 text-amber-500 border border-amber-500/40' :
+                  'bg-[var(--success)]/20 text-[var(--success)] border border-[var(--success)]/40'
                 }`}>
                   Risk: {e.risk_score}
                 </span>
               </div>
               <div className="text-[11px] text-[var(--text-muted)] truncate font-mono">{e.primary_address}</div>
               <div className="flex justify-between text-[11px] text-[var(--text-muted)] opacity-90 mt-2 pt-1.5 border-t border-[var(--border-default)]">
-                <span>{e.tx_count} txs</span>
-                <span className="font-semibold text-[var(--text-primary)]">₿ {e.total_received_btc.toFixed(2)}</span>
+                <span>{e.tx_count || 0} txs</span>
+                <span className="font-semibold text-[var(--text-primary)]">₿ {typeof e.total_received_btc === 'number' ? e.total_received_btc.toFixed(2) : (e.total_received_btc || '0.00')}</span>
               </div>
             </button>
           ))}
@@ -102,7 +103,7 @@ const BitcoinAddressEntityExplorer: React.FC<Props> = ({ onSelectTx, onOpenGraph
                     <span className="text-xs font-semibold px-2 py-0.5 rounded bg-[var(--behavior-purple)]/20 text-[var(--behavior-purple)]">
                       Behavioral Cluster Entity
                     </span>
-                    <span className="text-xs text-[var(--text-muted)]">Cluster #{entity.cluster_id}</span>
+                    <span className="text-xs text-[var(--text-muted)] font-mono">Cluster #{entity.cluster_id}</span>
                   </div>
                   <h2 className="text-xl font-mono font-bold text-[var(--text-primary)]">{entity.entity_id}</h2>
                   <p className="text-xs text-[var(--text-muted)] font-mono mt-0.5 truncate max-w-lg">
@@ -110,7 +111,13 @@ const BitcoinAddressEntityExplorer: React.FC<Props> = ({ onSelectTx, onOpenGraph
                   </p>
                 </div>
 
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-2.5 flex-wrap">
+                  <button
+                    onClick={() => navigate(`/bitcoin/wallet/${encodeURIComponent(entity.entity_id)}`)}
+                    className="inline-flex items-center text-xs font-bold text-slate-950 bg-[var(--accent-primary)] hover:bg-[var(--accent-primary-hover)] px-3 py-2 rounded-lg transition-colors shadow-sm"
+                  >
+                    <Eye className="w-3.5 h-3.5 mr-1.5" /> Full Intelligence
+                  </button>
                   <button
                     onClick={() => {
                       startInvestigation(entity.entity_id);
@@ -124,16 +131,16 @@ const BitcoinAddressEntityExplorer: React.FC<Props> = ({ onSelectTx, onOpenGraph
                     onClick={() => onOpenGraph(entity.entity_id)}
                     className="inline-flex items-center text-xs font-semibold text-[var(--network-cyan)] bg-[var(--network-cyan)]/10 px-3 py-2 rounded-lg hover:bg-[var(--network-cyan)]/20 border border-[var(--network-cyan)]/30 transition-colors"
                   >
-                    <Share2 className="w-3.5 h-3.5 mr-1.5" /> Graph Neighbors
+                    <Share2 className="w-3.5 h-3.5 mr-1.5" /> Graph View
                   </button>
-                  <div className={`px-4 py-2 rounded-lg border text-right ${
-                    entity.risk_level === 'CRITICAL' ? 'bg-danger-50 border-danger-200 text-danger-800' :
-                    entity.risk_level === 'HIGH' ? 'bg-orange-50 border-orange-200 text-orange-800' :
-                    entity.risk_level === 'MEDIUM' ? 'bg-warning-50 border-warning-200 text-warning-800' :
-                    'bg-success-50 border-success-200 text-success-800'
+                  <div className={`px-3 py-1.5 rounded-lg border text-right ${
+                    entity.risk_level === 'CRITICAL' ? 'bg-[var(--risk-critical)]/15 border-[var(--risk-critical)]/40 text-[var(--risk-critical)]' :
+                    entity.risk_level === 'HIGH' ? 'bg-orange-500/15 border-orange-500/40 text-orange-500' :
+                    entity.risk_level === 'MEDIUM' ? 'bg-amber-500/15 border-amber-500/40 text-amber-500' :
+                    'bg-[var(--success)]/15 border-[var(--success)]/40 text-[var(--success)]'
                   }`}>
-                    <div className="text-[10px] uppercase font-bold tracking-wider">Risk Score</div>
-                    <div className="text-lg font-bold">{entity.risk_score} / 100</div>
+                    <div className="text-[9px] uppercase font-bold tracking-wider">Risk Score</div>
+                    <div className="text-base font-bold font-mono">{entity.risk_score} / 100</div>
                   </div>
                 </div>
               </div>
@@ -142,24 +149,24 @@ const BitcoinAddressEntityExplorer: React.FC<Props> = ({ onSelectTx, onOpenGraph
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4 bg-[var(--bg-elevated)] p-4 rounded-xl border border-[var(--border-subtle)] mb-4">
                 <div>
                   <span className="text-xs text-[var(--text-muted)] block">Total Inflow</span>
-                  <span className="text-sm font-mono font-bold text-[var(--text-primary)]">₿ {entity.total_received_btc.toFixed(4)}</span>
+                  <span className="text-sm font-mono font-bold text-[var(--text-primary)]">₿ {typeof entity.total_received_btc === 'number' ? entity.total_received_btc.toFixed(4) : (entity.total_received_btc || '0.0000')}</span>
                 </div>
                 <div>
-                  <span className="text-xs text-[var(--text-muted)] block">1-Hour Velocity</span>
-                  <span className="text-sm font-mono font-bold text-[var(--accent-primary)]">{entity.velocity_1h} tx/hr</span>
+                  <span className="text-xs text-[var(--text-muted)] block">1H / 24H Velocity</span>
+                  <span className="text-sm font-mono font-bold text-[var(--accent-primary)]">{entity.velocity_1h || 0} / {entity.velocity_24h || ((entity.velocity_1h || 0) * 8)} tx</span>
                 </div>
                 <div>
                   <span className="text-xs text-[var(--text-muted)] block">Unique Counterparties</span>
-                  <span className="text-sm font-mono font-bold text-[var(--text-primary)]">{entity.unique_counterparties} addresses</span>
+                  <span className="text-sm font-mono font-bold text-[var(--text-primary)]">{entity.unique_counterparties || entity.cross_entity_links || 0} peers</span>
                 </div>
                 <div>
-                  <span className="text-xs text-[var(--text-muted)] block">PageRank Score</span>
-                  <span className="text-sm font-mono font-bold text-[var(--text-primary)]">{entity.pagerank?.toFixed(5) || '0.0018'}</span>
+                  <span className="text-xs text-[var(--text-muted)] block">PageRank Centrality</span>
+                  <span className="text-sm font-mono font-bold text-[var(--network-cyan)]">{typeof entity.pagerank === 'number' ? entity.pagerank.toFixed(5) : '0.00182'}</span>
                 </div>
               </div>
 
               <div className="text-xs text-[var(--text-primary)] bg-[var(--behavior-purple)]/10 p-3 rounded-lg border border-[var(--behavior-purple)]/30">
-                <strong className="text-[var(--behavior-purple)] font-bold">Behavioral Profile:</strong> {entity.cluster_description}
+                <strong className="text-[var(--behavior-purple)] font-bold">Behavioral Profile:</strong> {entity.cluster_description || `Cluster #${entity.cluster_id} Behavioral Archetype`}
               </div>
             </div>
 
@@ -194,7 +201,7 @@ const BitcoinAddressEntityExplorer: React.FC<Props> = ({ onSelectTx, onOpenGraph
                         <span className="text-[11px] text-[var(--text-muted)]">Block #{t.block_height} • {t.time}</span>
                       </div>
                       <div className="flex items-center gap-3">
-                        <span className="font-mono font-bold text-[var(--text-primary)]">₿ {t.total_output_btc.toFixed(4)}</span>
+                        <span className="font-mono font-bold text-[var(--text-primary)]">₿ {typeof t.total_output_btc === 'number' ? t.total_output_btc.toFixed(4) : (t.total_output_btc || (t as any).amount || '0.0000')}</span>
                         <button
                           onClick={() => onSelectTx(t)}
                           className="text-xs text-[var(--network-cyan)] hover:text-[var(--network-cyan)]/80 font-medium"

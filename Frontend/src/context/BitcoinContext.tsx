@@ -56,18 +56,45 @@ interface BitcoinContextType {
 }
 
 const defaultStatus: BitcoinStatus = {
-  current_block_height: 840250,
+  current_block_height: null,
   total_blocks_processed: 0,
   total_transactions: 0,
   total_entities: 0,
   total_btc_monitored: 0,
   critical_leads_count: 0,
   high_leads_count: 0,
-  network: 'regtest',
-  node_status: 'connected',
-  model_status: 'operational',
-  tps: 0,
-  model_latency_ms: 0
+  network: 'unknown',
+  node_status: 'DISCONNECTED',
+  model_status: 'MODEL_LOADING',
+  tps: null,
+  model_latency_ms: null,
+  unconfirmed_txs: null,
+  node: {
+    status: 'DISCONNECTED',
+    height: null,
+    chain: null,
+    mempool_txs: null,
+    connections: 0,
+    latency_ms: null,
+    error: null
+  },
+  model: {
+    status: 'MODEL_LOADING',
+    name: 'V.E.C.T.O.R Multi-Model Behavioral Anomaly Detector',
+    version: 'bitcoin_v1'
+  },
+  throughput: {
+    status: 'idle',
+    tx_per_sec: 0.0
+  },
+  inference: {
+    status: 'unmeasured',
+    latency_ms: null
+  },
+  mempool: {
+    status: 'UNAVAILABLE',
+    count: null
+  }
 };
 
 const BitcoinContext = createContext<BitcoinContextType>({
@@ -146,6 +173,17 @@ export const BitcoinProvider: React.FC<{ children: ReactNode }> = ({ children })
       }
       if (resEntities.data.length > 0 && !selectedEntity) {
         setSelectedEntity(resEntities.data[0]);
+      }
+
+      // Automatically hydrate primary investigation flow & graph
+      const primaryInvId = resInvs.data.find((inv: any) => inv.investigation_id === 'INV-35C54D881B')?.investigation_id ||
+                           resInvs.data[0]?.investigation_id ||
+                           'INV-35C54D881B';
+      if (primaryInvId) {
+        fetchInvestigation(primaryInvId);
+        fetchInvestigationFlow(primaryInvId);
+        fetchInvestigationGraph(primaryInvId);
+        fetchInvestigationLeads(primaryInvId);
       }
       setIsLoading(false);
     } catch (e) {
@@ -264,11 +302,22 @@ export const BitcoinProvider: React.FC<{ children: ReactNode }> = ({ children })
 
   const analyzeWallet = async (address: string): Promise<WalletAnalysis | null> => {
     try {
-      const res = await axios.get(`${API_BASE}/wallets/${address}/analyze`);
+      const res = await axios.post(`${API_BASE}/wallets/${encodeURIComponent(address)}/analyze`);
       return res.data;
-    } catch (e) {
-      console.error('Wallet analysis failed:', e);
-      return null;
+    } catch (e: any) {
+      if (e.response && e.response.status === 400) {
+        throw new Error(e.response.data?.error || 'Invalid Bitcoin address or identifier format');
+      }
+      try {
+        const fallback = await axios.get(`${API_BASE}/wallets/${encodeURIComponent(address)}/analyze`);
+        return fallback.data;
+      } catch (fallbackErr: any) {
+        console.error('Wallet analysis failed:', fallbackErr);
+        if (fallbackErr.response?.data?.error) {
+          throw new Error(fallbackErr.response.data.error);
+        }
+        return null;
+      }
     }
   };
 

@@ -46,15 +46,35 @@ const SearchOverlay: React.FC<Props> = ({ isOpen, onClose }) => {
 
   const handleSelect = (result: SearchResult) => {
     onClose();
-    if (result.type === 'wallet' || result.type === 'address') {
-      navigate(`/bitcoin/wallet/${result.id}`);
-    } else if (result.type === 'entity') {
-      // For now, redirect to dashboard or entities tab, could enhance later
-      navigate(`/bitcoin`);
+    if (result.type === 'wallet' || result.type === 'address' || result.type === 'entity') {
+      navigate(`/bitcoin/wallet/${encodeURIComponent(result.id)}`);
     } else if (result.type === 'transaction') {
-      navigate(`/bitcoin`);
+      navigate(`/bitcoin/transactions/${encodeURIComponent(result.id)}`);
     } else if (result.type === 'investigation') {
-      navigate(`/bitcoin/investigations/${result.id}`);
+      navigate(`/bitcoin/investigations/${encodeURIComponent(result.id)}`);
+    } else {
+      navigate(`/bitcoin/wallet/${encodeURIComponent(result.id)}`);
+    }
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      const trimmed = query.trim();
+      if (!trimmed) return;
+
+      if (results.length > 0) {
+        handleSelect(results[0]);
+      } else {
+        onClose();
+        if (/^INV-/i.test(trimmed)) {
+          navigate(`/bitcoin/investigations/${encodeURIComponent(trimmed)}`);
+        } else if (/^[a-fA-F0-9]{64}$/.test(trimmed)) {
+          navigate(`/bitcoin/transactions/${encodeURIComponent(trimmed)}`);
+        } else {
+          navigate(`/bitcoin/wallet/${encodeURIComponent(trimmed)}`);
+        }
+      }
     }
   };
 
@@ -84,6 +104,7 @@ const SearchOverlay: React.FC<Props> = ({ isOpen, onClose }) => {
             placeholder="Search wallets, addresses, entities, TXIDs..."
             value={query}
             onChange={(e) => setQuery(e.target.value)}
+            onKeyDown={handleKeyDown}
           />
           <button 
             onClick={onClose}

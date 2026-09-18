@@ -7,6 +7,7 @@ along with automated synthetic simulation fallback for development and isolated 
 import json
 import logging
 import time
+import os
 import urllib.request
 import urllib.error
 import base64
@@ -23,6 +24,33 @@ from bitcoin.config import (
 
 logger = logging.getLogger("VECTOR.BitcoinRPC")
 
+# Explicit connection status semantics
+STATUS_CONNECTED = "CONNECTED"
+STATUS_DISCONNECTED = "DISCONNECTED"
+STATUS_SIMULATION = "SIMULATION"
+STATUS_DEGRADED = "DEGRADED"
+
+# Whitelist of strictly read-only methods. State-altering or signing RPCs are strictly forbidden.
+ALLOWED_READONLY_METHODS = {
+    "getblockchaininfo",
+    "getblockcount",
+    "getblockhash",
+    "getblock",
+    "getrawtransaction",
+    "gettxout",
+    "getmempoolinfo",
+    "getrawmempool",
+    "uptime",
+}
+
+class BitcoinNodeUnavailableError(ConnectionError):
+    """Raised when Bitcoin Core RPC is unreachable and simulation mode is not enabled."""
+    pass
+
+class BitcoinRPCMethodForbiddenError(PermissionError):
+    """Raised when a non-whitelisted or state-modifying RPC method is attempted."""
+    pass
+
 class BitcoinRPCClient:
     def __init__(
         self,
@@ -31,7 +59,8 @@ class BitcoinRPCClient:
         user: str = BITCOIN_RPC_USER,
         password: str = BITCOIN_RPC_PASSWORD,
         timeout: int = RPC_TIMEOUT,
-        force_mock: bool = False
+        force_mock: bool = False,
+        simulation_mode: Optional[bool] = None
     ):
         self.host = host
         self.port = port
@@ -39,20 +68,152 @@ class BitcoinRPCClient:
         self.password = password
         self.timeout = timeout
         self.url = f"http://{self.host}:{self.port}"
-        self.force_mock = force_mock
-        self._is_live_node = None
+        
+        # Simulation mode must be explicitly configured
+        env_sim = os.getenv("BITCOIN_SIMULATION_MODE", "false").lower() == "true" or \
+                  os.getenv("FORCE_MOCK", "false").lower() == "true"
+        self.simulation_mode = force_mock or (simulation_mode if simulation_mode is not None else env_sim)
+        self.force_mock = self.simulation_mode
+        
+        self._status = STATUS_SIMULATION if self.simulation_mode else STATUS_DISCONNECTED
+        self._last_error: Optional[str] = None
+        self._last_latency_ms: Optional[float] = None
         self._mock_height = 840100
 
+    @property
+    def status(self) -> str:
+        """Returns the current verified status (CONNECTED, DISCONNECTED, SIMULATION, DEGRADED)."""
+        return self._status
+
+    def get_connection_status(self, timeout_override: Optional[float] = 1.5) -> Dict[str, Any]:
+        """
+        Probe Bitcoin Core node and return verified operational status.
+        Never reports fictional connectivity.
+        """
+        if self.simulation_mode:
+            return {
+                "status": STATUS_SIMULATION,
+                "network": "regtest",
+                "height": self._mock_height,
+                "headers": self._mock_height,
+                "verificationprogress": 1.0,
+                "mempool_size": 0,
+                "mempool_bytes": 0,
+                "latency_ms": 0.05,
+                "error": None,
+                "read_only": True,
+                "node": {
+                    "status": STATUS_SIMULATION,
+                    "height": self._mock_height
+                },
+                "mempool": {
+                    "status": "SIMULATION",
+                    "count": 0,
+                    "bytes": 0
+                }
+            }
+
+        t_start = time.perf_counter()
+        req_timeout = timeout_override if timeout_override is not None else self.timeout
+        try:
+            info = self._execute_rpc("getblockchaininfo", [], timeout=req_timeout)
+            latency_ms = round((time.perf_counter() - t_start) * 1000, 2)
+            self._last_latency_ms = latency_ms
+
+            progress = float(info.get("verificationprogress", 1.0))
+            chain = str(info.get("chain", "unknown"))
+            is_degraded = progress < 0.999
+            self._status = STATUS_DEGRADED if is_degraded else STATUS_CONNECTED
+            self._last_error = None
+
+            # Attempt read-only mempool info
+            mempool_size = None
+            mempool_bytes = None
+            try:
+                mp = self._execute_rpc("getmempoolinfo", [], timeout=req_timeout)
+                mempool_size = mp.get("size")
+                mempool_bytes = mp.get("bytes")
+            except Exception:
+                pass
+
+            return {
+                "status": self._status,
+                "network": chain,
+                "height": info.get("blocks"),
+                "headers": info.get("headers"),
+                "verificationprogress": progress,
+                "mempool_size": mempool_size,
+                "mempool_bytes": mempool_bytes,
+                "latency_ms": latency_ms,
+                "error": None,
+                "read_only": True,
+                "node": {
+                    "status": self._status,
+                    "height": info.get("blocks")
+                },
+                "mempool": {
+                    "status": "AVAILABLE" if mempool_size is not None else "UNAVAILABLE",
+                    "count": mempool_size,
+                    "bytes": mempool_bytes
+                }
+            }
+        except Exception as e:
+            self._status = STATUS_DISCONNECTED
+            self._last_error = str(e)
+            return {
+                "status": STATUS_DISCONNECTED,
+                "network": "unknown",
+                "height": None,
+                "headers": None,
+                "verificationprogress": None,
+                "mempool_size": None,
+                "mempool_bytes": None,
+                "latency_ms": None,
+                "error": str(e),
+                "read_only": True,
+                "node": {
+                    "status": STATUS_DISCONNECTED,
+                    "height": None
+                },
+                "mempool": {
+                    "status": "UNAVAILABLE",
+                    "count": None,
+                    "bytes": None
+                }
+            }
+
+    def call(self, method: str, params: Optional[List[Any]] = None) -> Any:
+        """Execute a read-only JSON-RPC method call to Bitcoin Core."""
+        return self._call(method, params)
+
     def _call(self, method: str, params: Optional[List[Any]] = None) -> Any:
-        """Execute a JSON-RPC method call to Bitcoin Core."""
-        if self.force_mock or self._is_live_node is False:
+        """Execute a read-only JSON-RPC method call to Bitcoin Core."""
+        # Read-only guard: block write/sign operations
+        if method not in ALLOWED_READONLY_METHODS:
+            raise BitcoinRPCMethodForbiddenError(
+                f"Method '{method}' is forbidden. V.E.C.T.O.R BitcoinRPCClient is strictly read-only."
+            )
+
+        if self.simulation_mode:
             return self._mock_call(method, params or [])
 
+        try:
+            return self._execute_rpc(method, params or [], timeout=self.timeout)
+        except (urllib.error.URLError, TimeoutError, ConnectionRefusedError, OSError) as e:
+            self._status = STATUS_DISCONNECTED
+            self._last_error = str(e)
+            # NEVER silently fall back to mock data
+            raise BitcoinNodeUnavailableError(
+                f"Bitcoin Core node not reachable at {self.url} for '{method}': {e}"
+            ) from e
+
+    def _execute_rpc(self, method: str, params: List[Any], timeout: float) -> Any:
+        """Direct low-level HTTP JSON-RPC execution."""
         payload = json.dumps({
             "jsonrpc": "2.0",
             "id": "vector_rpc",
             "method": method,
-            "params": params or []
+            "params": params
         }).encode("utf-8")
 
         req = urllib.request.Request(self.url, data=payload, headers={"Content-Type": "application/json"})
@@ -60,22 +221,11 @@ class BitcoinRPCClient:
             auth_str = f"{self.user}:{self.password}".encode("utf-8")
             req.add_header("Authorization", f"Basic {base64.b64encode(auth_str).decode('utf-8')}")
 
-        try:
-            with urllib.request.urlopen(req, timeout=self.timeout) as response:
-                res_data = json.loads(response.read().decode("utf-8"))
-                if res_data.get("error"):
-                    raise RuntimeError(f"RPC Error [{method}]: {res_data['error']}")
-                self._is_live_node = True
-                return res_data.get("result")
-        except (urllib.error.URLError, TimeoutError, ConnectionRefusedError) as e:
-            if self._is_live_node is None:
-                logger.warning(f"Bitcoin Core node not reachable at {self.url} ({e}). Switching to built-in simulation mode.")
-                self._is_live_node = False
-                return self._mock_call(method, params or [])
-            elif not self._is_live_node:
-                return self._mock_call(method, params or [])
-            else:
-                raise e
+        with urllib.request.urlopen(req, timeout=timeout) as response:
+            res_data = json.loads(response.read().decode("utf-8"))
+            if res_data.get("error"):
+                raise RuntimeError(f"RPC Error [{method}]: {res_data['error']}")
+            return res_data.get("result")
 
     def get_blockchain_info(self) -> Dict[str, Any]:
         return self._call("getblockchaininfo")

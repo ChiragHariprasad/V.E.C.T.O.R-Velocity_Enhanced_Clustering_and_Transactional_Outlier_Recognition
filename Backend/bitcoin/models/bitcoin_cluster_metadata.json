@@ -2,22 +2,22 @@
     "0": {
         "cluster_id": 0,
         "size": 500,
-        "description": "Cluster 0: Avg Vol 5.286 BTC, Avg Velocity 49.5 tx/hr",
-        "avg_volume": 5.2861,
-        "avg_velocity": 49.5
+        "description": "Cluster 0: Avg Vol 0.026 BTC, Avg Velocity 14.0 tx/hr",
+        "avg_volume": 0.026,
+        "avg_velocity": 14.03
     },
     "1": {
         "cluster_id": 1,
         "size": 500,
-        "description": "Cluster 1: Avg Vol 0.026 BTC, Avg Velocity 14.0 tx/hr",
-        "avg_volume": 0.026,
-        "avg_velocity": 14.03
+        "description": "Cluster 1: Avg Vol 78.312 BTC, Avg Velocity 0.5 tx/hr",
+        "avg_volume": 78.3119,
+        "avg_velocity": 0.5
     },
     "2": {
         "cluster_id": 2,
         "size": 500,
-        "description": "Cluster 2: Avg Vol 78.312 BTC, Avg Velocity 0.5 tx/hr",
-        "avg_volume": 78.3119,
-        "avg_velocity": 0.5
+        "description": "Cluster 2: Avg Vol 5.286 BTC, Avg Velocity 49.5 tx/hr",
+        "avg_volume": 5.2861,
+        "avg_velocity": 49.5
     }
 }

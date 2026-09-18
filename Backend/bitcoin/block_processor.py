@@ -53,28 +53,18 @@ class BitcoinBlockProcessor:
         except Exception:
             self.db = None
 
-        # Load ML models if present
-        self.models_loaded = False
-        self._load_models()
-
-    def _load_models(self):
-        try:
-            scaler_path = os.path.join(MODEL_DIR, "bitcoin_scaler.joblib")
-            xgb_path = os.path.join(MODEL_DIR, "bitcoin_fallback_xgboost.joblib")
-            if os.path.exists(scaler_path) and os.path.exists(xgb_path):
-                self.scaler = joblib.load(scaler_path)
-                self.xgb_fallback = joblib.load(xgb_path)
-                self.models_loaded = True
-                logger.info("Loaded Bitcoin ML models and scaler successfully.")
-        except Exception as e:
-            logger.warning(f"ML models could not be loaded: {e}. Will use heuristic/fallback scoring.")
+        # Load ML models
+        from bitcoin.ml_inference import BitcoinMLInferenceEngine
+        self.ml_inference = BitcoinMLInferenceEngine()
+        self.models_loaded = self.ml_inference.is_operational
+        self._entity_history: Dict[str, List[Dict[str, Any]]] = {}
 
     def process_block(self, block_data: Dict[str, Any]) -> List[Dict[str, Any]]:
         """
         Process an entire Bitcoin block: parse transactions, update graph & UTXOs,
         extract behavioral features, run risk scoring, and persist outputs.
         """
-        block_height = block_data.get("height", 800000)
+        block_height = block_data.get("height")
         block_hash = block_data.get("hash", "")
         block_time = block_data.get("time")
         raw_txs = block_data.get("tx", [])
@@ -110,6 +100,7 @@ class BitcoinBlockProcessor:
             primary_addr = tx["input_addresses"][0] if tx["input_addresses"] else (tx["output_addresses"][0] if tx["output_addresses"] else "unknown")
             entity_id = self.entity_profiler.get_or_create_entity(tx["input_addresses"], primary_addr)
             tx["entity_id"] = entity_id
+            entity_addrs = self.entity_profiler.get_entity_addresses(entity_id)
 
             # 3. Process UTXO lifecycle
             utxo_stats = self.utxo_mgr.process_transaction(tx)
@@ -122,28 +113,28 @@ class BitcoinBlockProcessor:
             # 5. Evaluate behavioral rules/heuristics
             rule_eval = BitcoinRulesEngine.evaluate_heuristics(tx, utxo_stats=utxo_stats)
 
-            # 6. Extract behavioral features
+            # 6. Extract behavioral features with actual entity history
+            history = self._entity_history.get(entity_id, [])
             features = BitcoinFeatureEngine.compute_features(
                 tx=tx,
                 entity_id=entity_id,
-                entity_history=[],
+                entity_history=history,
                 utxo_stats=utxo_stats,
                 graph_stats=graph_stats,
-                motif_stats=motif_stats
+                motif_stats=motif_stats,
+                entity_addresses=entity_addrs
             )
 
-            # 7. ML Model Anomaly Scoring
-            ml_score = 0.15
-            model_type = "xgboost_cold_start"
+            if entity_id not in self._entity_history:
+                self._entity_history[entity_id] = []
+            self._entity_history[entity_id].append(tx)
 
-            if self.models_loaded:
-                try:
-                    feat_vec = BitcoinFeatureEngine.feature_dict_to_array(features).reshape(1, -1)
-                    feat_scaled = self.scaler.transform(feat_vec)
-                    prob = self.xgb_fallback.predict_proba(feat_scaled)[0][1]
-                    ml_score = float(prob)
-                except Exception:
-                    ml_score = 0.20
+            # 7. ML Model Anomaly Scoring via V.E.C.T.O.R Pipeline
+            is_cold_start = (len(history) < 2)
+            ml_result = self.ml_inference.predict(features, is_cold_start=is_cold_start)
+            ml_score = ml_result.get("ml_score")
+            model_type = ml_result.get("model_type", "ML_UNAVAILABLE")
+            cluster_id = ml_result.get("cluster_id")
 
             # 8. Multi-Model Risk Engine
             risk_eval = self.risk_engine.evaluate_risk(
@@ -159,7 +150,7 @@ class BitcoinBlockProcessor:
             tx["risk_components"] = risk_eval["components"]
             tx["signals"] = risk_eval["signals"]
             tx["explanation"] = risk_eval["explanation"]
-            tx["cluster_id"] = 0
+            tx["cluster_id"] = cluster_id
 
             processed_txs.append(tx)
 
@@ -167,7 +158,7 @@ class BitcoinBlockProcessor:
             if self.db is not None:
                 self.db[COLL_TRANSACTIONS].update_one({"txid": tx["txid"]}, {"$set": tx}, upsert=True)
                 
-                # Update entity profile
+                # Update entity profile with real features
                 self.db[COLL_ENTITIES].update_one(
                     {"entity_id": entity_id},
                     {"$set": {
@@ -175,8 +166,15 @@ class BitcoinBlockProcessor:
                         "last_seen": tx["timestamp"],
                         "risk_score": tx["risk_score"],
                         "risk_level": tx["risk_level"],
-                        "cluster_id": tx["cluster_id"]
-                    }, "$inc": {"tx_count": 1, "total_received_btc": tx["total_output_btc"]}},
+                        "cluster_id": tx["cluster_id"],
+                        "velocity_1h": round(float(features.get("tx_velocity_1h", 1.0)), 2),
+                        "velocity_24h": round(float(features.get("tx_velocity_24h", 1.0)), 2),
+                        "avg_tx_value": round(float(features.get("avg_tx_value", tx["total_output_btc"])), 6)
+                    }, "$inc": {
+                        "tx_count": 1,
+                        "total_received_btc": tx["total_output_btc"],
+                        "total_volume_btc": tx["total_output_btc"]
+                    }},
                     upsert=True
                 )
 

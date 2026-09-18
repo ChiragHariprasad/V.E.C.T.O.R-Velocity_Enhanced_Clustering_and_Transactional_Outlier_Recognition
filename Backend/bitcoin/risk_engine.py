@@ -35,17 +35,20 @@ class BitcoinRiskEngine:
 
     def evaluate_risk(
         self,
-        ml_score: float,          # 0.0 to 1.0 (from Isolation Forest / XGBoost)
-        model_type: str,          # "isolation_forest" or "xgboost_cold_start"
+        ml_score: Optional[float],  # 0.0 to 1.0 (from Isolation Forest / XGBoost) or None if unavailable
+        model_type: str,            # "isolation_forest_cluster_X", "xgboost_cold_start", "xgboost_fallback", or "ML_UNAVAILABLE"
         features: Dict[str, float],
         rule_eval: Dict[str, Any],
         graph_stats: Dict[str, Any]
     ) -> Dict[str, Any]:
         """
         Compute normalized risk score and generate lead explanation.
+        Gracefully handles ML_UNAVAILABLE by pro-rating remaining component weights.
         """
+        ml_available = (ml_score is not None and model_type != "ML_UNAVAILABLE")
+
         # Component 1: ML Score (0 to 100)
-        ml_comp = min(100.0, max(0.0, ml_score * 100.0))
+        ml_comp = min(100.0, max(0.0, float(ml_score) * 100.0)) if ml_available else None
 
         # Component 2: Graph Component (PageRank + Degree + Motifs)
         pagerank = graph_stats.get("pagerank", 0.0001)
@@ -71,14 +74,29 @@ class BitcoinRiskEngine:
         rule_comp = float(rule_eval.get("rule_score", 0.0))
 
         # Weighted composite score
-        composite_score = (
-            self.w_ml * ml_comp +
-            self.w_graph * graph_comp +
-            self.w_vel * vel_comp +
-            self.w_temp * temp_comp +
-            self.w_utxo * utxo_comp +
-            self.w_rules * rule_comp
-        )
+        if ml_available:
+            composite_score = (
+                self.w_ml * ml_comp +
+                self.w_graph * graph_comp +
+                self.w_vel * vel_comp +
+                self.w_temp * temp_comp +
+                self.w_utxo * utxo_comp +
+                self.w_rules * rule_comp
+            )
+        else:
+            # Pro-rate across remaining components without fabricating fake ML score
+            non_ml_weights = (
+                self.w_graph + self.w_vel + self.w_temp + self.w_utxo + self.w_rules
+            )
+            raw_sum = (
+                self.w_graph * graph_comp +
+                self.w_vel * vel_comp +
+                self.w_temp * temp_comp +
+                self.w_utxo * utxo_comp +
+                self.w_rules * rule_comp
+            )
+            composite_score = (raw_sum / non_ml_weights) if non_ml_weights > 0 else 0.0
+
         composite_score = round(min(100.0, max(0.0, composite_score)), 2)
         risk_level = get_risk_level(composite_score)
 
@@ -86,8 +104,13 @@ class BitcoinRiskEngine:
         explanations = []
         signals = list(rule_eval.get("signals", []))
 
-        if ml_comp > 70.0:
-            explanations.append(f"Strong ML behavioral anomaly detected ({model_type}: score {ml_score:.2f}).")
+        if ml_available:
+            if ml_comp > 70.0:
+                explanations.append(f"Strong ML behavioral anomaly detected ({model_type}: score {ml_score:.2f}).")
+        else:
+            signals.append("ml_unavailable")
+            explanations.append("ML anomaly model unavailable; composite risk derived from structural and behavioral indicators.")
+
         if v_1h >= 4:
             explanations.append(f"High transaction velocity ({v_1h:.0f} tx/hr), exceeding baseline.")
             signals.append("velocity_spike")
@@ -110,7 +133,7 @@ class BitcoinRiskEngine:
             "risk_score": composite_score,
             "risk_level": risk_level,
             "components": {
-                "ml_score": round(ml_comp, 2),
+                "ml_score": round(ml_comp, 2) if ml_available else None,
                 "graph_score": round(graph_comp, 2),
                 "velocity_score": round(vel_comp, 2),
                 "temporal_score": round(temp_comp, 2),

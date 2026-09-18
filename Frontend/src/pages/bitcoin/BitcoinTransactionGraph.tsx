@@ -60,7 +60,7 @@ const BitcoinTransactionGraph: React.FC<Props> = ({ initialNodeId }) => {
           </div>
           <button
             onClick={() => fetchGraph(targetId)}
-            className="text-xs font-semibold text-white bg-[var(--accent-primary)] hover:bg-[var(--accent-primary-hover)] px-3 py-2 rounded-lg flex items-center gap-1.5 transition-colors"
+            className="text-xs font-bold text-slate-950 bg-[var(--accent-primary)] hover:bg-[var(--accent-primary-hover)] px-3 py-2 rounded-lg flex items-center gap-1.5 transition-colors shadow-sm"
           >
             <RefreshCw className="w-3.5 h-3.5" /> Trace
           </button>
@@ -70,9 +70,9 @@ const BitcoinTransactionGraph: React.FC<Props> = ({ initialNodeId }) => {
       {/* Graph Display Canvas + Node Inspector */}
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
         {/* Canvas Area */}
-        <div className="lg:col-span-3 bg-[#080b12] rounded-2xl p-6 min-h-[540px] border border-[var(--border-subtle)] relative flex flex-col justify-between overflow-hidden shadow-inner">
+        <div className="lg:col-span-3 bg-[var(--bg-base)] rounded-2xl p-6 min-h-[540px] border border-[var(--border-subtle)] relative flex flex-col justify-between overflow-hidden shadow-inner">
           {/* Legend Overlay */}
-          <div className="flex flex-wrap items-center gap-3 bg-[var(--bg-base)]/80 backdrop-blur-md px-3 py-2 rounded-xl border border-[var(--border-default)] text-[11px] text-[var(--text-muted)] z-10 w-fit">
+          <div className="flex flex-wrap items-center gap-3 bg-[var(--bg-surface)]/90 backdrop-blur-md px-3 py-2 rounded-xl border border-[var(--border-default)] text-[11px] text-[var(--text-muted)] z-10 w-fit">
             <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-full bg-[var(--behavior-purple)]"></span> Address Node</span>
             <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-sm bg-[var(--accent-primary)]"></span> Transaction Node</span>
             <span className="text-[var(--border-strong)]">|</span>
@@ -80,7 +80,7 @@ const BitcoinTransactionGraph: React.FC<Props> = ({ initialNodeId }) => {
             <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-[var(--success)]"></span> Low Risk</span>
           </div>
 
-          {/* Force Graph Nodes Simulation Mock Visualizer */}
+          {/* Force Graph Nodes Simulation Visualizer */}
           <div className="my-auto py-12 flex flex-wrap justify-center items-center gap-8 relative z-0">
             {graphData.nodes.length === 0 ? (
               <div className="text-center text-[var(--text-muted)] opacity-80">
@@ -109,7 +109,7 @@ const BitcoinTransactionGraph: React.FC<Props> = ({ initialNodeId }) => {
                       <span>{node.type}</span>
                       {node.risk_score ? <span>{node.risk_score} pts</span> : null}
                     </div>
-                    <div className="font-mono text-xs font-bold truncate max-w-[120px] text-white">{node.label}</div>
+                    <div className="font-mono text-xs font-bold truncate max-w-[120px] text-[var(--text-primary)]">{node.label}</div>
                     {node.value_btc ? (
                       <div className="text-[10px] text-[var(--success)] font-mono">₿ {node.value_btc.toFixed(4)}</div>
                     ) : null}
@@ -145,7 +145,7 @@ const BitcoinTransactionGraph: React.FC<Props> = ({ initialNodeId }) => {
                 </div>
                 <div className="bg-[var(--bg-elevated)] border border-[var(--border-default)] p-2.5 rounded-lg">
                   <span className="text-[11px] text-[var(--text-muted)] block">Risk Score</span>
-                  <span className="text-xs font-bold text-[var(--risk-critical)]">{selectedNode.risk_score || 10} / 100</span>
+                  <span className="text-xs font-bold text-[var(--risk-critical)]">{selectedNode.risk_score ?? 0} / 100</span>
                 </div>
               </div>
               <button

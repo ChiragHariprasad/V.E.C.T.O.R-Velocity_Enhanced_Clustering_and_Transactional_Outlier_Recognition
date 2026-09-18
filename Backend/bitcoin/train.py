@@ -73,7 +73,7 @@ def generate_synthetic_bitcoin_training_data(n_samples: int = 1200) -> pd.DataFr
 
 def train_bitcoin_models():
     """Train and persist Bitcoin UMAP, HDBSCAN, Cluster Isolation Forests, and Fallback XGBoost."""
-    print("🚀 [V.E.C.T.O.R-BITCOIN] Initiating model training pipeline...")
+    print("[V.E.C.T.O.R-BITCOIN] Initiating model training pipeline...")
     df = generate_synthetic_bitcoin_training_data(1500)
     X = df[BITCOIN_FEATURE_KEYS].values
     y = df["label"].values
@@ -84,19 +84,19 @@ def train_bitcoin_models():
     joblib.dump(scaler, os.path.join(MODEL_DIR, "bitcoin_scaler.joblib"))
 
     # 2. UMAP Dimensionality Reduction
-    print("🌀 Running UMAP on Bitcoin behavioral vectors...")
+    print("[*] Running UMAP on Bitcoin behavioral vectors...")
     reducer = umap.UMAP(n_neighbors=15, min_dist=0.1, n_components=5, random_state=42)
     X_umap = reducer.fit_transform(X_scaled)
     joblib.dump(reducer, os.path.join(MODEL_DIR, "bitcoin_umap.joblib"))
 
     # 3. HDBSCAN Community Discovery
-    print("🔍 Discovering behavioral communities via HDBSCAN...")
+    print("[*] Discovering behavioral communities via HDBSCAN...")
     clusterer = hdbscan.HDBSCAN(min_cluster_size=20, min_samples=10, prediction_data=True)
     cluster_labels = clusterer.fit_predict(X_umap)
     joblib.dump(clusterer, os.path.join(MODEL_DIR, "bitcoin_hdbscan.joblib"))
 
     unique_clusters = set(cluster_labels)
-    print(f"✅ Discovered {len(unique_clusters)} behavioral clusters (labels: {unique_clusters})")
+    print(f"[+] Discovered {len(unique_clusters)} behavioral clusters (labels: {unique_clusters})")
 
     # 4. Train Cluster-Specific Isolation Forests
     cluster_descriptions = {}
@@ -133,7 +133,7 @@ def train_bitcoin_models():
         json.dump(cluster_descriptions, f, indent=4)
 
     # 5. Fallback XGBoost Model for Cold-Start / Sparse Entities
-    print("🌲 Training XGBoost fallback model for cold-start entities...")
+    print("[*] Training XGBoost fallback model for cold-start entities...")
     xgb_model = XGBClassifier(n_estimators=100, max_depth=4, learning_rate=0.08, random_state=42)
     xgb_model.fit(X_scaled, y)
     joblib.dump(xgb_model, os.path.join(MODEL_DIR, "bitcoin_fallback_xgboost.joblib"))
@@ -150,7 +150,7 @@ def train_bitcoin_models():
     with open(os.path.join(MODEL_DIR, "model_metadata.json"), "w") as f:
         json.dump(metadata, f, indent=4)
 
-    print("🎉 [V.E.C.T.O.R-BITCOIN] All models trained and persisted successfully!")
+    print("[+] [V.E.C.T.O.R-BITCOIN] All models trained and persisted successfully!")
 
 if __name__ == "__main__":
     train_bitcoin_models()

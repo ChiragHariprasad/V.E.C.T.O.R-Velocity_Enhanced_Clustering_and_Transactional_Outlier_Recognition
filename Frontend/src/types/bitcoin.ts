@@ -119,7 +119,7 @@ export interface BitcoinClusterInfo {
 }
 
 export interface BitcoinStatus {
-  current_block_height: number;
+  current_block_height: number | null;
   total_blocks_processed: number;
   total_transactions: number;
   total_entities: number;
@@ -127,10 +127,67 @@ export interface BitcoinStatus {
   critical_leads_count: number;
   high_leads_count: number;
   network: string;
-  node_status: string;
-  model_status: string;
-  tps: number;
-  model_latency_ms: number;
+  node_status: 'CONNECTED' | 'DISCONNECTED' | 'SIMULATION' | 'DEGRADED' | string;
+  model_status: 'OPERATIONAL' | 'MODEL_MISSING' | 'MODEL_LOADING' | 'MODEL_ERROR' | string;
+  tps: number | null;
+  model_latency_ms: number | null;
+  unconfirmed_txs?: number | null;
+  node?: {
+    status: string;
+    height: number | null;
+    chain?: string | null;
+    headers?: number | null;
+    verificationprogress?: number | null;
+    mempool_txs?: number | null;
+    connections?: number;
+    latency_ms?: number | null;
+    error?: string | null;
+  };
+  model?: {
+    status: string;
+    name?: string;
+    version?: string;
+    loaded_at?: string | null;
+    features_count?: number;
+    clusters_loaded?: number[];
+    fallback_model?: string | null;
+    error?: string | null;
+  };
+  throughput?: {
+    status: 'active' | 'idle' | string;
+    tx_per_sec: number | null;
+    last_batch_tps?: number | null;
+    historical_avg_tps?: number | null;
+    processed_transactions?: number;
+    elapsed_seconds?: number | null;
+    updated_at?: string;
+  };
+  inference?: {
+    status: string;
+    latency_ms: number | null;
+    avg_latency_ms?: number | null;
+    p95_latency_ms?: number | null;
+    sample_count?: number;
+    total_inferences?: number;
+    breakdown?: {
+      preprocessing_ms?: number;
+      inference_ms?: number;
+      postprocessing_ms?: number;
+    } | null;
+  };
+  mempool?: {
+    status: 'AVAILABLE' | 'UNAVAILABLE' | 'SIMULATION' | string;
+    count: number | null;
+    bytes?: number | null;
+  };
+  storage?: {
+    total_blocks_processed: number;
+    total_transactions: number;
+    total_entities: number;
+    total_btc_monitored: number;
+    critical_leads_count: number;
+    high_leads_count: number;
+  };
 }
 
 export interface GraphNode {
@@ -296,6 +353,9 @@ export interface SearchResult {
 }
 
 export interface WalletAnalysis {
+  query_input?: string;
+  is_known?: boolean;
+  message?: string;
   address: string;
   entity: {
     entity_id: string;
@@ -313,6 +373,14 @@ export interface WalletAnalysis {
     avg_tx_value: number;
     counterparty_diversity: number;
   };
+  cluster?: {
+    cluster_id: number;
+    name: string;
+    archetype: string;
+    avg_volume_btc: number;
+    anomaly_percentage: number;
+    description: string;
+  };
   risk: {
     score: number;
     level: string;
@@ -325,6 +393,20 @@ export interface WalletAnalysis {
     };
   };
   transactions: BitcoinTransaction[];
+  graph?: {
+    nodes: Array<{ id: string; label: string; type: string; risk: number; cluster_id?: number }>;
+    edges: Array<{ from: string; to: string; value: number; txid: string }>;
+    stats?: { total_neighbors: number; in_degree: number; out_degree: number };
+  };
   patterns: string[];
+  investigation?: {
+    active: boolean;
+    id: string | null;
+    status: string | null;
+    priority: string | null;
+    leads_count: number;
+  };
+  leads?: any[];
   investigation_recommended: boolean;
+  analyzed_at?: string;
 }

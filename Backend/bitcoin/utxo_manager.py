@@ -20,7 +20,7 @@ class UTXOManager:
         Returns calculated UTXO statistics for feature engineering.
         """
         txid = tx["txid"]
-        block_height = tx.get("block_height") or 800000
+        block_height = tx.get("block_height")
         current_time = tx.get("timestamp") or int(time.time())
 
         spent_utxo_ages = []
@@ -37,9 +37,10 @@ class UTXOManager:
                 utxo["spent_by_txid"] = txid
                 utxo["spent_height"] = block_height
                 
-                # Calculate age in blocks and seconds
-                age_blocks = max(1, block_height - utxo.get("created_height", block_height))
-                spent_utxo_ages.append(age_blocks)
+                # Calculate age in blocks if block height is known
+                if block_height is not None and utxo.get("created_height") is not None:
+                    age_blocks = max(0, block_height - utxo.get("created_height"))
+                    spent_utxo_ages.append(age_blocks)
                 spent_utxo_values.append(utxo.get("value_btc", 0.0))
                 
                 # Remove from address mapping
@@ -73,15 +74,15 @@ class UTXOManager:
                 self._address_utxos[addr].append(out_key)
 
         # 3. Compute UTXO metrics
-        avg_age = float(sum(spent_utxo_ages) / len(spent_utxo_ages)) if spent_utxo_ages else 1.0
-        median_age = float(sorted(spent_utxo_ages)[len(spent_utxo_ages)//2]) if spent_utxo_ages else 1.0
-        old_ratio = sum(1 for age in spent_utxo_ages if age > 144) / max(1, len(spent_utxo_ages))  # > ~1 day (144 blocks)
-        young_ratio = sum(1 for age in spent_utxo_ages if age <= 6) / max(1, len(spent_utxo_ages)) # <= ~1 hour (6 blocks)
+        avg_age = float(sum(spent_utxo_ages) / len(spent_utxo_ages)) if spent_utxo_ages else None
+        median_age = float(sorted(spent_utxo_ages)[len(spent_utxo_ages)//2]) if spent_utxo_ages else None
+        old_ratio = (sum(1 for age in spent_utxo_ages if age > 144) / len(spent_utxo_ages)) if spent_utxo_ages else 0.0
+        young_ratio = (sum(1 for age in spent_utxo_ages if age <= 6) / len(spent_utxo_ages)) if spent_utxo_ages else 0.0
         fragmentation = len(tx.get("outputs", [])) / max(1.0, tx.get("total_output_btc", 1.0))
 
         return {
-            "avg_utxo_age_blocks": round(avg_age, 2),
-            "median_utxo_age_blocks": round(median_age, 2),
+            "avg_utxo_age_blocks": round(avg_age, 2) if avg_age is not None else 0.0,
+            "median_utxo_age_blocks": round(median_age, 2) if median_age is not None else 0.0,
             "old_utxo_spending_ratio": round(old_ratio, 4),
             "young_utxo_spending_ratio": round(young_ratio, 4),
             "utxo_fragmentation": round(fragmentation, 4),

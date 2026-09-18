@@ -27,6 +27,9 @@ import BitcoinBehavioralClusters from './BitcoinBehavioralClusters';
 import BitcoinAnomalyTimeline from './BitcoinAnomalyTimeline';
 import BitcoinInvestigations from './BitcoinInvestigations';
 import BitcoinInvestigationView from './BitcoinInvestigationView';
+import BitcoinModelPerformance from './BitcoinModelPerformance';
+import BitcoinDataSources from './BitcoinDataSources';
+import BitcoinSystemSettings from './BitcoinSystemSettings';
 import { BitcoinTransaction, BitcoinRiskLead } from '../../types/bitcoin';
 import { useBitcoin } from '../../context/BitcoinContext';
 
@@ -201,19 +204,9 @@ const BitcoinDashboard: React.FC<Props> = ({ initialTab = 'overview' }) => {
             onBack={() => navigate('/bitcoin/investigations')}
           />
         )}
-        {['models', 'sources', 'settings'].includes(activeTab) && (
-          <div className="flex flex-col items-center justify-center h-96 bg-[var(--bg-surface)] border border-[var(--border-subtle)] rounded-2xl p-10 text-center shadow-lg">
-            <div className="w-16 h-16 bg-[var(--bg-elevated)] rounded-2xl flex items-center justify-center mb-4 border border-[var(--border-default)]">
-              {activeTab === 'models' && <Cpu className="w-8 h-8 text-[var(--network-cyan)]" />}
-              {activeTab === 'sources' && <Database className="w-8 h-8 text-[var(--behavior-purple)]" />}
-              {activeTab === 'settings' && <Sliders className="w-8 h-8 text-[var(--text-muted)]" />}
-            </div>
-            <h2 className="text-xl font-bold text-[var(--text-primary)] capitalize mb-2">{activeTab} Module</h2>
-            <p className="text-sm text-[var(--text-muted)] max-w-md">
-              This module is currently undergoing system upgrades for V.E.C.T.O.R v2.0.0. Please check back later for advanced {activeTab} configuration.
-            </p>
-          </div>
-        )}
+        {activeTab === 'models' && <BitcoinModelPerformance />}
+        {activeTab === 'sources' && <BitcoinDataSources />}
+        {activeTab === 'settings' && <BitcoinSystemSettings />}
       </main>
 
       {/* Floating Sticky Live Feed Ticker at Bottom */}

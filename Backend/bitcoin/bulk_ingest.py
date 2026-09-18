@@ -16,8 +16,8 @@ import hashlib
 import argparse
 import logging
 import time
-from typing import Dict, Any, List, Optional
-from datetime import datetime
+from typing import Dict, Any, List, Optional, Set, Tuple
+from datetime import datetime, timezone
 
 # Core pipeline components
 from bitcoin.entity_profiler import EntityProfiler
@@ -30,6 +30,7 @@ from bitcoin.ip_correlator import IPWalletCorrelator
 from bitcoin.risk_propagation import RiskPropagationEngine
 from bitcoin.schemas import BITCOIN_FEATURE_KEYS
 from bitcoin.investigation_engine import InvestigationTrigger, InvestigationEngine
+from bitcoin.ml_inference import BitcoinMLInferenceEngine, ML_UNAVAILABLE
 
 logger = logging.getLogger("VECTOR.BulkIngest")
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(name)s] %(message)s")
@@ -169,11 +170,20 @@ def _normalize_row(row: Dict[str, Any]) -> Dict[str, Any]:
             "is_op_return": False,
         })
 
+    # Parse block height: use source data if present, otherwise None (do not fabricate 840000)
+    raw_height = row.get("block_height") or row.get("height")
+    block_height = None
+    if raw_height is not None and str(raw_height).strip() != "":
+        try:
+            block_height = int(raw_height)
+        except (ValueError, TypeError):
+            block_height = None
+
     return {
         "txid": txid,
         "timestamp": ts_epoch,
         "timestamp_str": ts_str,
-        "block_height": 840000,  # Synthetic
+        "block_height": block_height,
         "block_hash": "",
         "version": 2,
         "size": 250,
@@ -222,6 +232,7 @@ class BulkIngestPipeline:
         self.utxo_mgr = UTXOManager()
         self.ip_correlator = IPWalletCorrelator()
         self.risk_propagation = RiskPropagationEngine()
+        self.ml_inference = BitcoinMLInferenceEngine()
         self.persist = persist_to_mongo
 
         self.db = None
@@ -248,6 +259,7 @@ class BulkIngestPipeline:
         """
         logger.info(f"🚀 Starting bulk ingestion of {len(transactions)} transactions...")
         start_time = time.time()
+        self._ingest_start_time = start_time
 
         # Phase 1: Entity resolution & graph construction
         logger.info("Phase 1/5: Entity resolution & graph construction...")
@@ -297,8 +309,11 @@ class BulkIngestPipeline:
 
         # Phase 5: Feature extraction, rules, risk scoring, and persistence
         logger.info("Phase 5/5: Feature extraction, ML scoring & persistence...")
+        entity_history_map: Dict[str, List[Dict[str, Any]]] = {}
         for i, tx in enumerate(transactions):
             entity_id = tx["entity_id"]
+            history = entity_history_map.get(entity_id, [])
+            entity_addrs = self.entity_profiler.get_entity_addresses(entity_id)
 
             # UTXO stats
             utxo_stats = self.utxo_mgr.process_transaction(tx)
@@ -310,28 +325,38 @@ class BulkIngestPipeline:
             # Behavioral rules
             rule_eval = BitcoinRulesEngine.evaluate_heuristics(tx, utxo_stats=utxo_stats)
 
-            # Feature engineering
+            # Feature engineering with actual historical context and entity addresses
             features = BitcoinFeatureEngine.compute_features(
                 tx=tx,
                 entity_id=entity_id,
-                entity_history=[],
+                entity_history=history,
                 utxo_stats=utxo_stats,
                 graph_stats=graph_stats,
                 motif_stats=motif_stats,
+                entity_addresses=entity_addrs,
             )
 
-            # ML score (use heuristic-based estimate since models may not be trained yet)
-            ml_score = 0.15
+            # Record in entity history map
+            if entity_id not in entity_history_map:
+                entity_history_map[entity_id] = []
+            entity_history_map[entity_id].append(tx)
+
+            # Real ML Model Inference via V.E.C.T.O.R Pipeline
+            # (StandardScaler -> UMAP -> HDBSCAN -> Cluster Isolation Forest / XGBoost Fallback)
+            is_cold_start = (len(history) < 2)
+            ml_result = self.ml_inference.predict(features, is_cold_start=is_cold_start)
+            ml_score = ml_result.get("ml_score")
+            model_type = ml_result.get("model_type", "ML_UNAVAILABLE")
+            cluster_id = ml_result.get("cluster_id")
+
             propagated_risk = self.risk_propagation.get_risk_score(entity_id)
-            if propagated_risk > 0.5:
-                ml_score = max(ml_score, propagated_risk * 0.8)
-            if tx.get("is_illicit"):
+            if tx.get("is_illicit") and ml_score is not None:
                 ml_score = max(ml_score, 0.85)
 
             # Multi-model risk scoring
             risk_eval = self.risk_engine.evaluate_risk(
                 ml_score=ml_score,
-                model_type="bulk_ingest_heuristic",
+                model_type=model_type,
                 features=features,
                 rule_eval=rule_eval,
                 graph_stats=graph_stats,
@@ -349,6 +374,8 @@ class BulkIngestPipeline:
             tx["explanation"] = risk_eval["explanation"]
             tx["propagated_risk"] = round(propagated_risk, 4)
             tx["propagation_path"] = self.risk_propagation.get_propagation_path(entity_id)
+            tx["cluster_id"] = cluster_id
+            tx["ml_model_type"] = model_type
 
             # IP enrichment
             ip_features = self.ip_correlator.get_wallet_features(
@@ -464,7 +491,7 @@ class BulkIngestPipeline:
                 clean_txs.append(clean)
             self.db["bitcoin_transactions"].insert_many(clean_txs)
 
-        # Build and insert entity profiles
+        # Build and insert entity profiles with real accounting and cluster assignments
         entity_map = {}
         for tx in self.processed_txs:
             eid = tx.get("entity_id", "")
@@ -472,28 +499,103 @@ class BulkIngestPipeline:
                 continue
             if eid not in entity_map:
                 ip_profile = self.ip_correlator.get_entity_ip_profile(eid)
+                e_addrs = list(set(self.entity_profiler.get_entity_addresses(eid)))
                 entity_map[eid] = {
                     "entity_id": eid,
-                    "addresses": list(set(self.entity_profiler.get_entity_addresses(eid))),
+                    "primary_address": e_addrs[0] if e_addrs else "",
+                    "addresses": e_addrs,
                     "tx_count": 0,
                     "total_received_btc": 0.0,
+                    "total_sent_btc": 0.0,
+                    "balance_btc": 0.0,
                     "risk_score": 0,
                     "risk_level": "LOW",
-                    "cluster_id": 0,
+                    "cluster_id": tx.get("cluster_id"),
                     "geo_countries": ip_profile.get("geo_countries", []),
                     "unique_ips": ip_profile.get("unique_ips", 0),
                     "anonymity_score": ip_profile.get("anonymity_score", 0.0),
                     "cross_entity_links": ip_profile.get("cross_entity_link_count", 0),
                     "propagated_risk": self.risk_propagation.get_risk_score(eid),
                     "is_seed_illicit": eid in self.risk_propagation._seed_nodes,
+                    "velocity_1h": 0.0,
+                    "velocity_24h": 0.0,
+                    "total_volume_btc": 0.0,
+                    "avg_tx_value": 0.0,
                 }
             entity_map[eid]["tx_count"] += 1
-            entity_map[eid]["total_received_btc"] += tx.get("total_output_btc", 0.0)
+            if tx.get("cluster_id") is not None:
+                entity_map[eid]["cluster_id"] = tx.get("cluster_id")
             entity_map[eid]["risk_score"] = max(entity_map[eid]["risk_score"], tx.get("risk_score", 0))
             entity_map[eid]["risk_level"] = tx.get("risk_level", entity_map[eid]["risk_level"])
 
+        # Accurate accounting derived from transaction UTXOs
+        for eid, profile in entity_map.items():
+            e_addrs = set(profile["addresses"])
+            e_txs = [t for t in self.processed_txs if t.get("entity_id") == eid]
+            rec = 0.0
+            sent = 0.0
+            for t in e_txs:
+                for out in t.get("outputs", []):
+                    if out.get("address") in e_addrs:
+                        rec += float(out.get("value_btc", 0.0))
+                for inp in t.get("inputs", []):
+                    if inp.get("address") in e_addrs:
+                        sent += float(inp.get("value_btc", 0.0))
+            if rec == 0.0 and sent == 0.0:
+                rec = sum(float(t.get("total_output_btc", 0.0)) for t in e_txs)
+                sent = sum(float(t.get("total_input_btc", 0.0)) for t in e_txs)
+
+            profile["total_received_btc"] = round(rec, 6)
+            profile["total_sent_btc"] = round(sent, 6)
+            profile["balance_btc"] = round(max(0.0, rec - sent), 6)
+            profile["total_volume_btc"] = round(rec + sent, 6)
+            profile["avg_tx_value"] = round((rec + sent) / max(1, len(e_txs)), 6)
+
+            # Derive real velocity metrics from transaction timeline
+            ts_list = sorted([t.get("timestamp") or 0 for t in e_txs])
+            latest_ts = ts_list[-1] if ts_list else 0
+            v1h = sum(1 for ts in ts_list if (latest_ts - ts) <= 3600)
+            v24h = sum(1 for ts in ts_list if (latest_ts - ts) <= 86400)
+            profile["velocity_1h"] = round(float(v1h), 2)
+            profile["velocity_24h"] = round(float(v24h), 2)
+
         if entity_map:
             self.db["bitcoin_entities"].insert_many(list(entity_map.values()))
+
+        # Aggregate real clusters from ingested entities and persist
+        cluster_groups: Dict[int, List[Dict[str, Any]]] = {}
+        for eid, profile in entity_map.items():
+            cid = profile.get("cluster_id")
+            if cid is not None and cid >= 0:
+                if cid not in cluster_groups:
+                    cluster_groups[cid] = []
+                cluster_groups[cid].append(profile)
+
+        cluster_docs = []
+        cluster_meta = self.ml_inference.get_cluster_metadata()
+        for cid, e_list in sorted(cluster_groups.items()):
+            meta = cluster_meta.get(str(cid), {})
+            vols = [e["total_received_btc"] for e in e_list]
+            avg_vol = round(sum(vols) / len(vols), 4) if vols else 0.0
+            outliers = sum(1 for e in e_list if e.get("risk_score", 0) >= 70)
+            anomaly_pct = round((outliers / len(e_list)) * 100.0, 1) if e_list else 0.0
+            
+            cluster_name = f"Behavioral Cluster #{cid}"
+            cluster_desc = meta.get("description", f"Community of {len(e_list)} entities sharing structural behavioral profiles.")
+
+            cluster_docs.append({
+                "cluster_id": cid,
+                "name": cluster_name,
+                "description": cluster_desc,
+                "entity_count": len(e_list),
+                "avg_volume_btc": avg_vol,
+                "avg_velocity_1h": meta.get("avg_velocity", 1.0),
+                "anomaly_rate_pct": anomaly_pct,
+            })
+
+        if cluster_docs:
+            self.db["bitcoin_clusters"].delete_many({})
+            self.db["bitcoin_clusters"].insert_many(cluster_docs)
 
         # Insert risk events (alerts)
         if self.alert_queue:
@@ -504,10 +606,12 @@ class BulkIngestPipeline:
         if geo_stats:
             self.db["bitcoin_ip_correlations"].insert_many(geo_stats)
 
-        # Insert a synthetic block summary
+        # Insert block summary with real derived block height (or None if unconfirmed)
+        heights = [tx["block_height"] for tx in self.processed_txs if tx.get("block_height") is not None]
+        summary_height = max(heights) if heights else None
         self.db["bitcoin_blocks"].insert_one({
-            "height": 840250,
-            "hash": "bulk_ingest_block",
+            "height": summary_height,
+            "hash": "bulk_ingest_batch",
             "time": int(time.time()),
             "timestamp": datetime.utcnow().isoformat() + "Z",
             "tx_count": len(self.processed_txs),
@@ -524,9 +628,34 @@ class BulkIngestPipeline:
                 clean_invs.append(clean)
             self.db["bitcoin_investigations"].insert_many(clean_invs)
 
+        # Persist verified system telemetry (measured throughput & inference latency)
+        elapsed_ingest = time.time() - getattr(self, "_ingest_start_time", time.time())
+        batch_tps = round(len(self.processed_txs) / max(0.001, elapsed_ingest), 2)
+        telemetry = self.ml_inference.get_telemetry()
+
+        system_telemetry_doc = {
+            "_id": "telemetry",
+            "model": telemetry.get("model", {}),
+            "inference": telemetry.get("inference", {}),
+            "throughput": {
+                "status": "idle",
+                "tx_per_sec": 0.0,
+                "last_batch_tps": batch_tps,
+                "historical_avg_tps": batch_tps,
+                "processed_transactions": len(self.processed_txs),
+                "elapsed_seconds": round(elapsed_ingest, 2),
+                "updated_at": datetime.now(timezone.utc).isoformat()
+            }
+        }
+        self.db["bitcoin_system_telemetry"].replace_one(
+            {"_id": "telemetry"},
+            system_telemetry_doc,
+            upsert=True
+        )
+
         logger.info(f"   Persisted {len(self.processed_txs)} txs, "
                      f"{len(entity_map)} entities, {len(self.alert_queue)} alerts, "
-                     f"{len(self.investigations)} investigations")
+                     f"{len(self.investigations)} investigations, and system telemetry")
 
     def _build_summary(self, elapsed: float) -> Dict[str, Any]:
         """Build ingestion summary."""
