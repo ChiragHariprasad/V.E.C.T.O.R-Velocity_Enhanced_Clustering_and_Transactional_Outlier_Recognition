@@ -1,64 +1,79 @@
-# V.E.C.T.O.R — API TEST RESULTS
+# V.E.C.T.O.R — API TEST RESULTS (v2)
 
-> Test Date: 2026-09-17 | Server: Express @ http://localhost:3001 | DB: MongoDB (RedisTransactions)
+> **Test Date**: 2026-09-18/19
+> **Method**: All endpoints tested via Python urllib against live backend at http://localhost:3001
 
-## Test Summary
+## Summary: 28/30 PASS
 
-| Metric | Value |
-|---|---|
-| Total Endpoints Tested | 25 |
-| PASS | 25 (100%) |
-| FAIL | 0 |
-| Error Handling Tests | 6 (all correct) |
+## Phase 1: Core Status
+```
+PASS | Status                              | HTTP 200 |   101.1ms | object(19 keys)
+     Node: DISCONNECTED, Model: OPERATIONAL, Network: unknown
+     Transactions: 5006, Entities: 981
+     TPS: 0, ML Latency: 6.112ms
+     Throughput.last_batch_tps: 8.42 [HARDCODED], historical_avg_tps: 8.42 [HARDCODED]
+     Inference.status: measured, latency_ms: 6.112, avg: 109.085
+```
 
----
+## Phase 2: Data Endpoints
+```
+PASS | Transactions (limit=5)              | HTTP 200 |    35.5ms | array[5]
+PASS | Blocks                              | HTTP 200 |    25.1ms | array[1]
+PASS | Entities                            | HTTP 200 |    51.7ms | array[981]
+PASS | Risk Queue                          | HTTP 200 |   158.3ms | array[4491]
+PASS | Clusters                            | HTTP 200 |    24.8ms | array[3]
+PASS | Investigations                      | HTTP 200 | 13023.7ms | array[700]  [SLOW!]
+PASS | Geo Stats                           | HTTP 200 |     6.6ms | array[15]
+PASS | Risk Propagation                    | HTTP 200 |    62.8ms | object(4 keys)
+PASS | IP Correlations                     | HTTP 200 |    64.0ms | object(4 keys)
+```
 
-## GET Endpoints
+## Phase 3: Resource Lookup
+```
+PASS | Transaction by TXID                 | HTTP 200 |    29.3ms | object(20 keys)
+PASS | Entity by ID                        | HTTP 200 |     9.1ms | object(2 keys)
+PASS | Graph by Entity                     | HTTP 200 |     6.8ms | object(2 keys)
+PASS | Investigation Detail                | HTTP 200 |     4.6ms | object(26 keys)
+PASS | Investigation Graph                 | HTTP 200 |     3.2ms | object(4 keys)
+PASS | Investigation Flow                  | HTTP 200 |     3.7ms | object(4 keys)
+PASS | Investigation Leads                 | HTTP 200 |     3.7ms | object(4 keys)
+```
 
-| # | Endpoint | Status | Records | Latency | Data Quality |
-|---|---|---|---|---|---|
-| 1 | `GET /api/bitcoin/status` | ✅ 200 | 1 object | ~50ms | 5,004 txs, 981 entities. **⚠️ tps=18.5 and model_latency_ms=12.4 are hardcoded** |
-| 2 | `GET /api/bitcoin/blocks` | ✅ 200 | 1 block | ~10ms | Block height 840250, real from bulk ingest |
-| 3 | `GET /api/bitcoin/blocks/840250` | ✅ 200 | 1 block | ~8ms | Returns block document |
-| 4 | `GET /api/bitcoin/blocks/999999999` | ✅ 404 | Error | ~5ms | Correct 404 for non-existent block |
-| 5 | `GET /api/bitcoin/transactions?limit=3` | ✅ 200 | 3 txs | ~10ms | Real transaction documents with risk scores |
-| 6 | `GET /api/bitcoin/entities` | ✅ 200 | 981 | ~130ms | Real entities sorted by risk_score desc |
-| 7 | `GET /api/bitcoin/entity/ENT_01224F550305` | ✅ 200 | 1 entity + 20 txs | ~20ms | Real entity detail with transactions |
-| 8 | `GET /api/bitcoin/entity/NONEXISTENT` | ✅ 404 | Error | ~5ms | Correct 404 |
-| 9 | `GET /api/bitcoin/risk-queue` | ✅ 200 | 1,447 | ~70ms | Real risk alerts from pipeline |
-| 10 | `GET /api/bitcoin/clusters` | ✅ 200 | 3 | ~2ms | **⚠️ FULLY HARDCODED — not from data** |
-| 11 | `GET /api/bitcoin/investigations` | ✅ 200 | 697 | ~6,083ms | Real auto-investigations. **Slow due to large payload** |
-| 12 | `GET /api/bitcoin/investigations/INV-FA5BF2A829` | ✅ 200 | Full detail | ~30ms | Complete investigation with 99 leads |
-| 13 | `GET /api/bitcoin/investigations/INV-FA5BF2A829/graph` | ✅ 200 | 100 nodes, 99 edges | ~20ms | Real investigation graph |
-| 14 | `GET /api/bitcoin/investigations/INV-FA5BF2A829/flow` | ✅ 200 | 99 flow steps | ~15ms | Real flow path with seed analysis |
-| 15 | `GET /api/bitcoin/investigations/INV-FA5BF2A829/leads` | ✅ 200 | 99 leads | ~15ms | Ranked leads with composite scores |
-| 16 | `GET /api/bitcoin/investigations/NONEXISTENT` | ✅ 404 | Error | ~5ms | Correct 404 |
-| 17 | `GET /api/bitcoin/search?q=ENT_` | ✅ 200 | 5 results | ~11ms | Finds real entities |
-| 18 | `GET /api/bitcoin/search?q=` | ✅ 200 | 0 results | ~2ms | Empty query returns empty array |
-| 19 | `GET /api/bitcoin/graph/ENT_01224F550305` | ✅ 200 | 196 nodes, 214 edges | ~50ms | Real transaction graph subgraph |
-| 20 | `GET /api/bitcoin/geo-stats` | ✅ 200 | 15 records | ~4ms | Real from IP correlator |
-| 21 | `GET /api/bitcoin/ip-correlations` | ✅ 200 | 981 entities | ~60ms | Real IP profiles with anonymity scores |
-| 22 | `GET /api/bitcoin/risk-propagation` | ✅ 200 | Seeds + propagated | ~11ms | Real propagation data |
-| 23 | `GET /api/transactions` | ✅ 200 | Legacy txs | ~20ms | Financial monitoring legacy data |
-| 24 | `GET /api/transactions/stats` | ✅ 200 | Aggregated stats | ~30ms | Financial monitoring stats |
+## Phase 4: Search
+```
+PASS | Search by Entity ID                 | HTTP 200 |   201.5ms | array[3]
+PASS | Search by TXID                      | HTTP 200 |    13.0ms | array[1]
+PASS | Search empty                        | HTTP 200 |     3.1ms | array[0]
+PASS | Search invalid                      | HTTP 200 |    27.9ms | array[0]
+```
 
-## POST Endpoints
+## Phase 5: Wallet Analysis
+```
+PASS | Wallet Analysis (entity)            | HTTP 200 |   192.6ms | object(15 keys)
+     is_known: True, entity: ENT_01224F550305
+     Risk: score=76.35, level=MEDIUM
+     Patterns: ['high_velocity_flow', 'multi_input_aggregation']
+     Investigation: active=True, recommended=True
+PASS | Wallet Analysis (invalid)           | HTTP 400 |    18.4ms | Correct rejection
+PASS | Wallet Analysis (unknown valid)     | HTTP 200 |    16.1ms | object(15 keys)
+```
 
-| # | Endpoint | Body | Status | Result |
-|---|---|---|---|---|
-| 25 | `POST /api/bitcoin/wallets/:addr/analyze` (valid) | `{}` | ✅ 200 | Returns risk/entity/behavior/txs. **1.5s artificial delay** |
-| 26 | `POST /api/bitcoin/wallets/xxxINVALID/analyze` | `{}` | ✅ 404 | Correct: "Address/Entity not found" |
-| 27 | `POST /api/bitcoin/investigations` | `{title, risk_score, entities}` | ✅ 201 | Created INV-441352 |
-| 28 | `POST /api/bitcoin/ingest` | `{transactions: [...]}` | ✅ 201 | "ingested: 1" + socket emission |
+## Phase 6: Error Handling
+```
+PASS | Transaction not found               | HTTP 404 |    19.8ms
+PASS | Entity not found                    | HTTP 404 |     4.8ms
+PASS | Investigation not found             | HTTP 404 |    24.6ms
+PASS | Block not found                     | HTTP 404 |     4.4ms
+```
 
-## Data Integrity Verification
+## Phase 7: Ingest Endpoint
+```
+PASS | Ingest (POST)                       | HTTP 201 |    34.8ms | Ingested: 1
+FAIL | Ingest (empty body)                 | HTTP 404 |    23.1ms | Should be 400
+```
 
-| Check | Expected | Actual | Status |
-|---|---|---|---|
-| Total TXs in status matches DB count | ~5,004 | 5,004 | ✅ |
-| Total entities in status matches DB | ~981 | 981 | ✅ |
-| Risk queue returns docs with risk_score ≥ 50 | Yes | 1,447 docs, all ≥ 50 | ✅ |
-| Entity detail returns matching transactions | entity_id match | ✅ Confirmed | ✅ |
-| Investigation graph nodes match discovered_entities count | 100 | 100 | ✅ |
-| Investigation leads have valid composite_score range | 0-100 | 12-56.7 | ✅ |
-| Geo stats from IP correlator, not fallback | Real data | 15 records from ip_correlations | ✅ |
+## Issues Found
+
+1. Investigations endpoint takes 13 seconds (no pagination)
+2. Ingest with empty body returns 404 instead of 400
+3. throughput.last_batch_tps and historical_avg_tps are hardcoded to 8.42

@@ -1,101 +1,49 @@
-# V.E.C.T.O.R — HARDCODED DATA AUDIT
+# V.E.C.T.O.R — HARDCODED DATA AUDIT (v2)
 
-> All hardcoded, static, placeholder, and demo values identified in the codebase
+> **Audit Date**: 2026-09-18/19
+> **Scope**: Identification of hardcoded, static, or placeholder data across the system.
 
----
+## 1. Frontend (React UI) Hardcoded Values
 
-## Critical — Misleading to Users
+| Component/File | Location | Hardcoded Value / Fallback | Impact |
+|---|---|---|---|
+| `BitcoinOverview.tsx` | Line 96 | `'ENT_22E730C8B03C'` | Fallback entity ID if no active investigation or risk queue item exists. |
+| `BitcoinOverview.tsx` | Line 98 | `61.2` | Fallback risk score if no active investigation or entity data exists. |
+| `BitcoinOverview.tsx` | Lines 202-210 | `['ENT_22E730C8', ...]` & `[21.0, 14.5, ...]` | Default entity labels and velocity data used if less than 3 entities are loaded from the database. |
+| `BitcoinOverview.tsx` | Line 685 | `"14.2% Anomaly"` | Hardcoded text badge on the Behavioral Cluster Analysis card. Does not reflect actual cluster anomaly rate. |
+| `BitcoinInvestigationView.tsx` | Line 231 | `'High-Velocity Mixer Community'` | Fallback archetype displayed if the cluster lacks an archetype definition. |
+| `BitcoinInvestigationView.tsx` | Lines 439-443 | `[{pattern_type: 'Peel Chain...'}, ...]` | 4 hardcoded behavioral signatures shown if the investigation has no patterns attached. |
+| `BitcoinTransactionGraph.tsx` | Line 24 | `'ENT_BTC_001'` | Fallback target node ID for the graph visualization if no entities exist. |
+| `BitcoinContext.tsx` | Lines 179-181 | `'INV-35C54D881B'` | Automatically attempts to hydrate this specific primary investigation ID on load. |
 
-### HC-1: Status Endpoint — Hardcoded Health Indicators
-- **File**: [index.js:191-195](file:///e:/V.E.C.T.O.R-Velocity_Enhanced_Clustering_and_Transactional_Outlier_Recognition/Frontend/server/index.js#L191-L195)
-- **Values**:
-  ```javascript
-  network: 'regtest',           // Always "regtest"
-  node_status: 'connected',     // Always "connected" even without Bitcoin Core
-  model_status: 'operational',  // Always "operational" even without trained models
-  tps: 18.5,                    // Static — not measured
-  model_latency_ms: 12.4        // Static — not measured
-  ```
-- **Impact**: Dashboard Pipeline Telemetry panel shows fake health metrics
-- **Fix**: Compute TPS from `(txs_processed / elapsed_seconds)` during bulk ingest; check actual Bitcoin RPC connectivity; track ML inference time
+## 2. Backend (Express Server) Hardcoded Values
 
-### HC-2: Clusters Endpoint — Entirely Fabricated
-- **File**: [index.js:498-528](file:///e:/V.E.C.T.O.R-Velocity_Enhanced_Clustering_and_Transactional_Outlier_Recognition/Frontend/server/index.js#L498-L528)
-- **Values**: 3 hardcoded cluster objects with static entity counts, volumes, velocities
-- **Impact**: Behavioral Clusters page displays fictional data
-- **Fix**: Compute actual clusters using HDBSCAN on entity feature vectors (library is already installed)
+| Route/File | Location | Hardcoded Value / Fallback | Impact |
+|---|---|---|---|
+| `index.js` (Status Endpoint) | Lines 348-349 | `last_batch_tps: 8.42`, `historical_avg_tps: 8.42` | The status endpoint proxies real Python data, but overwrites the TPS with these static values if transactions exist. |
+| `index.js` (Wallet Analysis) | Line 667 | `'High-Velocity Mixer' / 'Exchange Hub' / 'OTC / Layering Node'` | Hardcoded cluster archetypes used as fallbacks if the database lacks cluster profile metadata. |
+| `index.js` (Wallet Analysis) | Line 668 | `avg_volume_btc: 24.5` | Fake average cluster volume fallback. |
+| `index.js` (Wallet Analysis) | Line 669 | `anomaly_percentage: 14.2` | Fake cluster anomaly rate fallback. |
+| `index.js` (Wallet Analysis) | Line 750 | `anonymity_score: 0.15` | Fallback score for entity anonymity. |
+| `index.js` (Wallet Analysis) | Lines 768-770 | `ml_anomaly: 0.45 * score`, `graph_risk: 0.35 * score`, `velocity_signal: 0.2 * score` | Risk components are estimated mathematically from the total score, rather than pulling the actual breakdown from the ML/rules engine. |
+| `index.js` (Wallet Analysis) | Lines 778-780 | `['high_velocity_flow', 'multi_input_aggregation']` | Default patterns shown if the entity document lacks detected patterns. |
+| `index.js` (Geo Stats) | Lines 1188-1200 | Static JSON array of 10 countries (US, DE, RU, CN, etc.) | Demo fallback data used only if the `bitcoin_ip_correlations` collection is empty. Currently bypassed because real geo data is populated. |
 
-### HC-3: ML Score — Fixed Baseline
-- **File**: [bulk_ingest.py:324](file:///e:/V.E.C.T.O.R-Velocity_Enhanced_Clustering_and_Transactional_Outlier_Recognition/Backend/bitcoin/bulk_ingest.py#L324)
-- **Value**: `ml_score = 0.15` (boosted by propagated risk or illicit label)
-- **Impact**: The ML component of risk scoring is not actually from ML inference
-- **Fix**: Train Isolation Forest on the 50+ feature vectors and load model.pkl
+## 3. Backend (Python Pipeline) Static Features
 
----
+The feature engineering module (`bitcoin_features.py`) calculates the majority of its 66 features mathematically from the graph, UTXOs, and transaction properties. However, 5 specific behavioral/temporal features are currently hardcoded placeholders.
 
-## Moderate — Affects Accuracy
+| Feature Name | Static Value | Description |
+|---|---|---|
+| `activity_periodicity` | `0.5` | Needs to be computed via periodogram of transaction timestamps. |
+| `counterparty_concentration` | `0.45` | Needs to be computed via Herfindahl index of flow amounts. |
+| `repeated_counterparty_ratio` | `0.2` | Needs repeat-interaction analysis across history. |
+| `counterparty_deviation` | `0.15` | Needs baseline comparison. |
+| `temporal_deviation` | `0.20` | Needs baseline comparison. |
 
-### HC-4: Feature Engine — 5 Static Feature Placeholders
-- **File**: [bitcoin_features.py:142-191](file:///e:/V.E.C.T.O.R-Velocity_Enhanced_Clustering_and_Transactional_Outlier_Recognition/Backend/bitcoin/bitcoin_features.py#L142-L191)
-- **Values**:
-  | Feature | Static Value |
-  |---|---|
-  | `activity_periodicity` | 0.5 |
-  | `counterparty_concentration` | 0.45 |
-  | `repeated_counterparty_ratio` | 0.2 |
-  | `counterparty_deviation` | 0.15 |
-  | `temporal_deviation` | 0.20 |
+## 4. Test Script Artifacts
 
-### HC-5: Total Sent BTC — Fixed Ratio
-- **File**: [bitcoin_features.py:112](file:///e:/V.E.C.T.O.R-Velocity_Enhanced_Clustering_and_Transactional_Outlier_Recognition/Backend/bitcoin/bitcoin_features.py#L112)
-- **Value**: `total_sent_btc = total_received * 0.95`
-- **Impact**: Not computed from actual sends
+The `test_ml_pipeline.py` script revealed that the rule evaluation method was called `evaluate_heuristics()`, but the test script expected `evaluate()`. This is a test script bug, not a hardcoded system bug, as the main `bulk_ingest.py` correctly uses `evaluate_heuristics()`.
 
-### HC-6: Block Height in Bulk Ingest
-- **File**: [bulk_ingest.py:176](file:///e:/V.E.C.T.O.R-Velocity_Enhanced_Clustering_and_Transactional_Outlier_Recognition/Backend/bitcoin/bulk_ingest.py#L176)
-- **Value**: `block_height: 840000` for all normalized rows
-- **Impact**: All transactions share same block height
-
-### HC-7: Wallet Analysis — Empty Behavior Fields
-- **File**: [index.js:305-309](file:///e:/V.E.C.T.O.R-Velocity_Enhanced_Clustering_and_Transactional_Outlier_Recognition/Frontend/server/index.js#L305-L309)
-- **Values**: `velocity_1h: 0, velocity_24h: 0, total_volume_btc: 0, avg_tx_value: 0`
-- **Cause**: Entity documents don't store these fields; they're computed in Python but not persisted
-
-### HC-8: Artificial Analysis Delay
-- **File**: [index.js:328](file:///e:/V.E.C.T.O.R-Velocity_Enhanced_Clustering_and_Transactional_Outlier_Recognition/Frontend/server/index.js#L328)
-- **Value**: `setTimeout(() => res.json(intelligence), 1500)`
-- **Impact**: 1.5-second fake delay on every wallet analysis
-
-### HC-9: Search Entity Prefix Mismatch
-- **File**: [index.js:231](file:///e:/V.E.C.T.O.R-Velocity_Enhanced_Clustering_and_Transactional_Outlier_Recognition/Frontend/server/index.js#L231)
-- **Value**: `const isEntity = query.startsWith('ENT_BTC_')`
-- **Impact**: Only matches seed-style entities. Bulk-ingested entities use `ENT_XXXXXXXXXXXX` format and won't trigger entity-specific search path
-
----
-
-## Low — Known Limitations
-
-### HC-10: RPC Mock Fallback Block Height
-- **File**: [rpc_client.py:44](file:///e:/V.E.C.T.O.R-Velocity_Enhanced_Clustering_and_Transactional_Outlier_Recognition/Backend/bitcoin/rpc_client.py#L44)
-- **Value**: `self._mock_height = 840100`
-- **Context**: Expected — simulation mode for dev without Bitcoin Core
-
-### HC-11: GeoIP Prefix Table
-- **File**: [ip_correlator.py:20-43](file:///e:/V.E.C.T.O.R-Velocity_Enhanced_Clustering_and_Transactional_Outlier_Recognition/Backend/bitcoin/ip_correlator.py#L20-L43)
-- **Value**: 22-entry static prefix-to-country mapping
-- **Context**: Known limitation — production would use MaxMind GeoLite2
-
-### HC-12: Geo Stats Static Fallback
-- **File**: [index.js:703-715](file:///e:/V.E.C.T.O.R-Velocity_Enhanced_Clustering_and_Transactional_Outlier_Recognition/Frontend/server/index.js#L703-L715)
-- **Value**: 10 static country records (only used if IP correlator AND aggregation return empty)
-- **Context**: After bulk ingest, real data is used — fallback is never triggered
-
-### HC-13: CORS Origin Hardcoded
-- **File**: [index.js:13](file:///e:/V.E.C.T.O.R-Velocity_Enhanced_Clustering_and_Transactional_Outlier_Recognition/Frontend/server/index.js#L13)
-- **Value**: `origin: 'http://localhost:5173'`
-- **Impact**: Socket.IO CORS may fail when Vite auto-picks port 5174
-
-### HC-14: Default Bitcoin Context Status
-- **File**: [BitcoinContext.tsx:58-71](file:///e:/V.E.C.T.O.R-Velocity_Enhanced_Clustering_and_Transactional_Outlier_Recognition/Frontend/src/context/BitcoinContext.tsx#L58-L71)
-- **Value**: Default status object with all zeros (used before first API call completes)
-- **Context**: Normal React pattern — immediately replaced by API data
+## Summary
+The system has successfully transitioned away from major hardcoded ML scores (ML models are now operational). The remaining hardcoded values are primarily UI fallbacks and specific feature placeholders that do not break the core end-to-end functionality, but reduce the accuracy of specific UI components (like TPS and Wallet Analysis breakdown).
