@@ -249,7 +249,7 @@ class BitcoinFeatureEngine:
             "sudden_activity_score": float(sudden_activity),
 
             # Group E: Counterparty
-            "unique_counterparties": float(unique_cp or len(all_counterparties if 'all_counterparties' in locals() else [])),
+            "unique_counterparties": float(unique_cp),
             "incoming_counterparties": float(len(tx.get("input_addresses", []))),
             "outgoing_counterparties": float(len(tx.get("output_addresses", []))),
             "counterparty_growth_rate": float(unique_cp) / max(1.0, float(tx_count)),
