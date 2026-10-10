@@ -5,12 +5,10 @@ import {
   CheckCircle2, 
   AlertCircle, 
   Layers, 
-  GitBranch, 
   Gauge, 
-  Database,
-  BarChart3,
-  Sliders,
-  Sparkles,
+  Database, 
+  BarChart3, 
+  Sliders, 
   Info
 } from 'lucide-react';
 import { useBitcoin } from '../../context/BitcoinContext';

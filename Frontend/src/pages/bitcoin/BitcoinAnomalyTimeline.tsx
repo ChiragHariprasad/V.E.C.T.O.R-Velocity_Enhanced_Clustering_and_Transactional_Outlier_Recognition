@@ -1,13 +1,7 @@
-import React from 'react';
-import { 
-  TrendingUp, 
-  Clock, 
-  Activity, 
-  ShieldAlert, 
-  AlertTriangle 
-} from 'lucide-react';
+import { TrendingUp } from 'lucide-react';
 import { useBitcoin } from '../../context/BitcoinContext';
 import { Line } from 'react-chartjs-2';
+import { ChartOptions } from 'chart.js';
 
 const BitcoinAnomalyTimeline: React.FC = () => {
   const { transactions } = useBitcoin();
@@ -81,7 +75,7 @@ const BitcoinAnomalyTimeline: React.FC = () => {
 
       <div className="bg-[var(--bg-surface)] rounded-xl p-6 border border-[var(--border-subtle)] shadow-sm">
         <div className="h-80">
-          <Line data={timelineData} options={chartOptions as any} />
+          <Line data={timelineData} options={chartOptions as ChartOptions<'line'>} />
         </div>
       </div>
     </div>

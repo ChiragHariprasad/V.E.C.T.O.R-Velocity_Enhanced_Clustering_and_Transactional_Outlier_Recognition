@@ -1,33 +1,17 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect } from 'react';
 import { 
   ShieldAlert, 
   Layers, 
-  Coins, 
   Cpu, 
   Activity, 
   TrendingUp, 
-  Users, 
-  ArrowUpRight,
-  Database, 
-  Radio, 
-  Wifi, 
-  WifiOff, 
-  AlertTriangle, 
-  Zap, 
-  Box, 
-  Clock, 
   ArrowRight, 
-  CheckCircle2,
-  ChevronRight,
-  Eye,
-  ExternalLink,
-  Network,
-  FileSearch,
-  Target,
-  FileText,
-  GitFork,
-  ArrowDownRight,
-  Share2
+  ChevronRight, 
+  Eye, 
+  ExternalLink, 
+  Network, 
+  Target, 
+  GitFork 
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useBitcoin } from '../../context/BitcoinContext';
@@ -45,7 +29,7 @@ import {
   BarElement, 
   Filler
 } from 'chart.js';
-import { Line, Doughnut, Bar } from 'react-chartjs-2';
+import { Line, Doughnut } from 'react-chartjs-2';
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend, ArcElement, BarElement, Filler);
 
@@ -65,13 +49,11 @@ const BitcoinOverview: React.FC<BitcoinOverviewProps> = ({ onOpenTab }) => {
     entities, 
     investigations,
     activeInvestigation,
-    investigationGraph,
     investigationFlow,
     fetchInvestigation,
     fetchInvestigationGraph,
     fetchInvestigationFlow,
     startInvestigation,
-    setSelectedEntity,
     setSelectedTx
   } = useBitcoin();
 
@@ -83,6 +65,7 @@ const BitcoinOverview: React.FC<BitcoinOverviewProps> = ({ onOpenTab }) => {
       fetchInvestigationGraph(primaryInvId);
       fetchInvestigationFlow(primaryInvId);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [investigations.length]);
 
   const criticalCount = riskQueue.filter(r => r.risk_level === 'CRITICAL').length;
@@ -150,7 +133,7 @@ const BitcoinOverview: React.FC<BitcoinOverviewProps> = ({ onOpenTab }) => {
       label: 'BTC Volume',
       data: txVolumes,
       borderColor: '#f59e0b',
-      backgroundColor: (context: any) => {
+      backgroundColor: (context: { chart: { ctx: CanvasRenderingContext2D } }) => {
         const ctx = context.chart.ctx;
         const gradient = ctx.createLinearGradient(0, 0, 0, 240);
         gradient.addColorStop(0, 'rgba(245, 158, 11, 0.40)');
@@ -181,7 +164,7 @@ const BitcoinOverview: React.FC<BitcoinOverviewProps> = ({ onOpenTab }) => {
         titleColor: chartTooltipTitle,
         bodyColor: '#f59e0b',
         callbacks: {
-          label: (context: any) => ` ₿ ${context.parsed.y.toFixed(4)} BTC`
+          label: (context: { parsed: { y: number } }) => ` ₿ ${context.parsed.y.toFixed(4)} BTC`
         }
       }
     },
@@ -198,61 +181,9 @@ const BitcoinOverview: React.FC<BitcoinOverviewProps> = ({ onOpenTab }) => {
     }
   };
 
-  // 3. Entity Velocity Bar Data
-  const defaultEntityLabels = ['ENT_22E730C8', 'ENT_4BBBE95B', 'ENT_5ABDA24F', 'ENT_8ED12A25', 'ENT_B542F7D1'];
-  const defaultVelocityData = [21.0, 14.5, 9.2, 8.4, 6.1];
-
-  const entityLabels = entities.length >= 3 
-    ? entities.slice(0, 5).map(e => e.entity_id.slice(0, 12))
-    : defaultEntityLabels;
-  const velocityData = entities.length >= 3
-    ? entities.slice(0, 5).map(e => e.velocity_24h || e.velocity_1h || 5.0)
-    : defaultVelocityData;
-
-  const velocityBarData = {
-    labels: entityLabels,
-    datasets: [{
-      label: '24-Hour Velocity (tx/day)',
-      data: velocityData,
-      backgroundColor: '#8b5cf6',
-      hoverBackgroundColor: '#a78bfa',
-      borderRadius: 6,
-      barThickness: 24
-    }]
-  };
-
-  const barChartOptions = {
-    responsive: true,
-    maintainAspectRatio: false,
-    plugins: {
-      legend: { display: false },
-      tooltip: {
-        backgroundColor: chartTooltipBg,
-        borderColor: '#8b5cf6',
-        borderWidth: 1,
-        titleColor: chartTooltipTitle,
-        bodyColor: '#c4b5fd',
-        callbacks: {
-          label: (context: any) => ` ${context.parsed.y} tx/day`
-        }
-      }
-    },
-    scales: {
-      x: {
-        grid: { display: false, drawBorder: false },
-        ticks: { color: chartTextColor, font: { size: 10 } }
-      },
-      y: {
-        grid: { color: chartGridColor, drawBorder: false },
-        ticks: { color: chartTextColor, font: { size: 10 } },
-        title: { display: true, text: 'Transactions / Day', color: chartTextColor, font: { size: 10 } }
-      }
-    }
-  };
-
   // Real Multi-Hop Flow Steps from Backend Investigation Engine
   const flowSteps = investigationFlow.slice(0, 3);
-  const totalFlowVolume = flowSteps.reduce((sum, s) => sum + (Number(s.amount) || Number((s as any).amount_btc) || 0), 0);
+  const totalFlowVolume = flowSteps.reduce((sum, s) => sum + (Number(s.amount) || Number((s as { amount_btc?: number }).amount_btc) || 0), 0);
   const avgForwardingRatio = flowSteps.length > 0
     ? (flowSteps.reduce((sum, s) => sum + (Number(s.forwarding_ratio) || 0), 0) / flowSteps.length) * 100
     : 0;
@@ -364,8 +295,8 @@ const BitcoinOverview: React.FC<BitcoinOverviewProps> = ({ onOpenTab }) => {
                     { bg: 'bg-[var(--behavior-purple)]/15', border: 'border-[var(--behavior-purple)]', text: 'text-[var(--behavior-purple)]', label: 'Hop 3 Exit' },
                   ];
                   const color = hopColors[idx] || hopColors[0];
-                  const entityId = step.destination_entity || (step as any).to_entity || 'UNKNOWN';
-                  const amountVal = Number(step.amount) || Number((step as any).amount_btc) || 0;
+                  const entityId = step.destination_entity || ('to_entity' in step ? String(step.to_entity) : 'UNKNOWN');
+                  const amountVal = Number(step.amount) || ('amount_btc' in step ? Number(step.amount_btc) : 0);
 
                   return (
                     <React.Fragment key={idx}>
@@ -820,7 +751,7 @@ const BitcoinOverview: React.FC<BitcoinOverviewProps> = ({ onOpenTab }) => {
             <span className="font-bold font-mono text-sm text-[var(--network-cyan)]">
               {status?.tps !== null && status?.tps !== undefined 
                 ? `${status.tps.toFixed(2)} tx/s` 
-                : status?.throughput?.current_window_tps !== undefined
+                : typeof status?.throughput?.current_window_tps === 'number'
                 ? `${status.throughput.current_window_tps.toFixed(2)} tx/s`
                 : '--'}
             </span>

@@ -13,7 +13,6 @@ import {
   Cpu,
   Database,
   Sliders,
-  ChevronRight,
   ArrowRight,
   Coins
 } from 'lucide-react';
@@ -63,11 +62,8 @@ const BitcoinDashboard: React.FC<Props> = ({ initialTab = 'overview' }) => {
   };
 
   const handleViewInvestigation = (investigationId: string) => {
+    setActiveInvestigationId(investigationId);
     navigate(`/bitcoin/investigations/${investigationId}`);
-  };
-
-  const handleStartInvestigation = (entityId: string) => {
-    navigate('/bitcoin/investigations');
   };
 
   useEffect(() => {

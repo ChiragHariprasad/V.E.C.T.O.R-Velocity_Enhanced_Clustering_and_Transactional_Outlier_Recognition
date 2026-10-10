@@ -2,19 +2,13 @@ import React, { useState } from 'react';
 import { 
   Users, 
   Search, 
-  Coins, 
-  Activity, 
   Share2, 
   ShieldAlert, 
-  Clock, 
-  ArrowUpRight,
-  ChevronRight,
-  ExternalLink,
   Eye
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useBitcoin } from '../../context/BitcoinContext';
-import { BitcoinEntity, BitcoinTransaction } from '../../types/bitcoin';
+import { BitcoinTransaction } from '../../types/bitcoin';
 
 interface Props {
   onSelectTx: (tx: BitcoinTransaction) => void;
@@ -201,7 +195,7 @@ const BitcoinAddressEntityExplorer: React.FC<Props> = ({ onSelectTx, onOpenGraph
                         <span className="text-[11px] text-[var(--text-muted)]">Block #{t.block_height} • {t.time}</span>
                       </div>
                       <div className="flex items-center gap-3">
-                        <span className="font-mono font-bold text-[var(--text-primary)]">₿ {typeof t.total_output_btc === 'number' ? t.total_output_btc.toFixed(4) : (t.total_output_btc || (t as any).amount || '0.0000')}</span>
+                        <span className="font-mono font-bold text-[var(--text-primary)]">₿ {typeof t.total_output_btc === 'number' ? t.total_output_btc.toFixed(4) : (t.total_output_btc || t.amount || '0.0000')}</span>
                         <button
                           onClick={() => onSelectTx(t)}
                           className="text-xs text-[var(--network-cyan)] hover:text-[var(--network-cyan)]/80 font-medium"

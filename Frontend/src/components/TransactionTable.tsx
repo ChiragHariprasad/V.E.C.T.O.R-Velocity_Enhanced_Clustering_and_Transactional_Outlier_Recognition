@@ -1,5 +1,4 @@
 import React, { useState } from 'react';
-import { format } from 'date-fns';
 import { AlertTriangle, CheckCircle, Search, ChevronRight, ChevronLeft } from 'lucide-react';
 import { Transaction, MERCHANT_CATEGORIES, DEVICE_TYPES } from '../types';
 import { motion, AnimatePresence } from 'framer-motion';

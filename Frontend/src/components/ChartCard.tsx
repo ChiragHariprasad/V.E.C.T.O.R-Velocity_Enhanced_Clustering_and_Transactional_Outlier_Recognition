@@ -37,7 +37,7 @@ interface ChartCardProps {
   icon: LucideIcon;
   color?: string;
   height?: number;
-  options?: ChartOptions<any>;
+  options?: ChartOptions;
 }
 
 const ChartCard: React.FC<ChartCardProps> = ({
@@ -58,7 +58,7 @@ const ChartCard: React.FC<ChartCardProps> = ({
     danger: 'bg-danger-50 text-danger-500 border-danger-100',
   };
   
-  const defaultOptions: ChartOptions<any> = {
+  const defaultOptions: ChartOptions = {
     responsive: true,
     maintainAspectRatio: false,
     plugins: {
@@ -99,8 +99,8 @@ const ChartCard: React.FC<ChartCardProps> = ({
           },
           y: {
             beginAtZero: true,
-            grid: {
-              borderDash: [4, 4],
+            border: {
+              dash: [4, 4],
             },
           },
         } 
@@ -129,10 +129,10 @@ const ChartCard: React.FC<ChartCardProps> = ({
       </div>
       
       <div style={{ height: `${height}px` }} className="p-4">
-        {type === 'line' && <Line data={data} options={mergedOptions} />}
-        {type === 'bar' && <Bar data={data} options={mergedOptions} />}
-        {type === 'pie' && <Pie data={data} options={mergedOptions} />}
-        {type === 'doughnut' && <Doughnut data={data} options={mergedOptions} />}
+        {type === 'line' && <Line data={data} options={mergedOptions as ChartOptions<'line'>} />}
+        {type === 'bar' && <Bar data={data} options={mergedOptions as ChartOptions<'bar'>} />}
+        {type === 'pie' && <Pie data={data} options={mergedOptions as ChartOptions<'pie'>} />}
+        {type === 'doughnut' && <Doughnut data={data} options={mergedOptions as ChartOptions<'doughnut'>} />}
       </div>
     </motion.div>
   );

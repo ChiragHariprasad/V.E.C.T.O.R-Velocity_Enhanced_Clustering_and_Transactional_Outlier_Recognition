@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Sliders, Shield, AlertTriangle, Cpu, Save, Check } from 'lucide-react';
+import { Sliders, Shield, Cpu, Save, Check, Sun, Moon } from 'lucide-react';
 import { useTheme } from '../../context/ThemeContext';
 
 export const BitcoinSystemSettings: React.FC = () => {
@@ -122,6 +122,28 @@ export const BitcoinSystemSettings: React.FC = () => {
                 Outputs equal to or below this amount are flagged for dust attacks and mixer obfuscation.
               </p>
             </div>
+          </div>
+        </div>
+
+        {/* Appearance Settings */}
+        <div className="bg-[var(--bg-elevated)] border border-[var(--border-subtle)] rounded-2xl p-6 shadow-sm space-y-5 lg:col-span-2">
+          <div className="flex items-center gap-2.5">
+            <Cpu className="w-5 h-5 text-[var(--accent-primary)]" />
+            <h2 className="text-sm font-bold text-[var(--text-primary)]">Interface Appearance</h2>
+          </div>
+          <div className="flex items-center justify-between">
+            <div>
+              <span className="text-xs font-semibold text-[var(--text-primary)] block">Theme Mode</span>
+              <span className="text-[11px] text-[var(--text-muted)]">Current mode: {theme === 'light' ? 'Light Theme' : 'Dark Theme'}</span>
+            </div>
+            <button
+              type="button"
+              onClick={toggleTheme}
+              className="px-4 py-2 bg-[var(--bg-surface)] hover:bg-[var(--bg-elevated)] border border-[var(--border-default)] rounded-xl text-xs font-semibold text-[var(--text-primary)] flex items-center gap-2 transition-all shadow-sm"
+            >
+              {theme === 'light' ? <Moon className="w-3.5 h-3.5 text-amber-500" /> : <Sun className="w-3.5 h-3.5 text-amber-400" />}
+              <span>Switch to {theme === 'light' ? 'Dark' : 'Light'} Mode</span>
+            </button>
           </div>
         </div>
       </div>

@@ -2,24 +2,18 @@ import React, { useState, useEffect } from 'react';
 import { 
   Share2, 
   Search, 
-  ZoomIn, 
-  ZoomOut, 
   RefreshCw, 
-  Layers, 
-  ShieldAlert, 
-  CheckCircle,
-  Coins,
   ArrowRight
 } from 'lucide-react';
 import { useBitcoin } from '../../context/BitcoinContext';
-import { GraphNode, GraphEdge } from '../../types/bitcoin';
+import { GraphNode } from '../../types/bitcoin';
 
 interface Props {
   initialNodeId?: string | null;
 }
 
 const BitcoinTransactionGraph: React.FC<Props> = ({ initialNodeId }) => {
-  const { graphData, fetchGraph, transactions, entities } = useBitcoin();
+  const { graphData, fetchGraph, entities } = useBitcoin();
   const [selectedNode, setSelectedNode] = useState<GraphNode | null>(null);
   const [targetId, setTargetId] = useState(initialNodeId || entities[0]?.entity_id || 'ENT_BTC_001');
 
@@ -27,6 +21,7 @@ const BitcoinTransactionGraph: React.FC<Props> = ({ initialNodeId }) => {
     if (targetId) {
       fetchGraph(targetId);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [targetId]);
 
   const handleNodeClick = (node: GraphNode) => {
@@ -88,7 +83,7 @@ const BitcoinTransactionGraph: React.FC<Props> = ({ initialNodeId }) => {
                 <p className="text-xs">No graph elements to display for this node query.</p>
               </div>
             ) : (
-              graphData.nodes.map((node, i) => {
+              graphData.nodes.map((node) => {
                 const isSelected = selectedNode?.id === node.id;
                 const isTx = node.type === 'transaction';
                 const isHigh = node.risk_score && node.risk_score >= 50;

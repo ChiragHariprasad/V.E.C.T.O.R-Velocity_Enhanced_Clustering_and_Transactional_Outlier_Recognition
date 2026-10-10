@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Database, Search, Cpu, BrainCircuit, ShieldAlert, CheckCircle2, ChevronRight } from 'lucide-react';
+import { Database, Search, Cpu, BrainCircuit, ShieldAlert, CheckCircle2 } from 'lucide-react';
 
 interface Props {
   onComplete: () => void;

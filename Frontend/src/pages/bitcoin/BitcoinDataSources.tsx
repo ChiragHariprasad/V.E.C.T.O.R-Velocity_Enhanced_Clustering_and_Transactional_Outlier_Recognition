@@ -1,5 +1,5 @@
 import React from 'react';
-import { Database, Server, HardDrive, CheckCircle2, AlertTriangle, RefreshCw, Cpu } from 'lucide-react';
+import { Database, Server, HardDrive, RefreshCw, Cpu } from 'lucide-react';
 import { useBitcoin } from '../../context/BitcoinContext';
 
 export const BitcoinDataSources: React.FC = () => {

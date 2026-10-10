@@ -1,10 +1,6 @@
 import React from 'react';
 import { 
   Layers, 
-  Users, 
-  Activity, 
-  Coins, 
-  ShieldAlert,
   Info
 } from 'lucide-react';
 import { useBitcoin } from '../../context/BitcoinContext';

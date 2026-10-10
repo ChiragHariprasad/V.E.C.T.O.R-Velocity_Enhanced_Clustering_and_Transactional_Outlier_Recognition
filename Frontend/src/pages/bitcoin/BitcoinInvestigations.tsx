@@ -4,16 +4,12 @@ import {
   PlusCircle, 
   Clock, 
   ShieldAlert, 
-  CheckCircle, 
-  User, 
-  Tag,
-  ChevronRight,
-  FolderOpen,
-  Eye,
-  Users,
-  Target,
-  Layers,
-  Zap
+  FolderOpen, 
+  Eye, 
+  Users, 
+  Target, 
+  Layers, 
+  Zap 
 } from 'lucide-react';
 import { useBitcoin } from '../../context/BitcoinContext';
 import { BitcoinRiskLead } from '../../types/bitcoin';
@@ -95,7 +91,7 @@ const BitcoinInvestigations: React.FC<Props> = ({ initialLead, onViewInvestigati
                 <label className="block font-semibold text-[var(--text-secondary)] mb-1">Priority</label>
                 <select
                   value={priority}
-                  onChange={e => setPriority(e.target.value as any)}
+                  onChange={e => setPriority(e.target.value as 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL')}
                   className="w-full bg-[var(--bg-elevated)] border border-[var(--border-default)] focus:border-amber-500 rounded-xl px-3 py-2 text-xs text-[var(--text-primary)] outline-none font-semibold"
                 >
                   <option value="LOW">Low</option>

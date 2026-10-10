@@ -44,6 +44,8 @@ export interface BitcoinTransaction {
   explanation: string;
   cluster_id: number;
   status: string;
+  amount?: number;
+  amount_btc?: number;
 }
 
 export interface BitcoinBlock {
@@ -78,6 +80,8 @@ export interface BitcoinEntity {
   risk_score: number;
   risk_level: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
   pagerank: number;
+  address_count?: number;
+  cross_entity_links?: number;
 }
 
 export interface BitcoinRiskLead {
@@ -158,6 +162,7 @@ export interface BitcoinStatus {
     tx_per_sec: number | null;
     last_batch_tps?: number | null;
     historical_avg_tps?: number | null;
+    current_window_tps?: number | null;
     processed_transactions?: number;
     elapsed_seconds?: number | null;
     updated_at?: string;
@@ -231,6 +236,7 @@ export interface InvestigationSummary {
   entities: string[];
   transactions: string[];
   notes: string;
+  primary_entity?: string;
 }
 
 export interface InvestigationFlowStep {
@@ -287,6 +293,7 @@ export interface InvestigationGraphNode {
   tx_count: number;
   is_seed: boolean;
   investigation_relevance: number;
+  hop?: number;
 }
 
 export interface InvestigationGraphEdge {
@@ -337,11 +344,19 @@ export interface InvestigationFull {
   detected_patterns: InvestigationPattern[];
   evidence: InvestigationEvidence;
   final_leads: InvestigationLead[];
-  seed_analysis: Record<string, any>;
+  seed_analysis: Record<string, unknown>;
   flow_path: InvestigationFlowStep[];
   graph_nodes: InvestigationGraphNode[];
   graph_edges: InvestigationGraphEdge[];
-  risk_propagation_results: Record<string, any>;
+  risk_propagation_results: Record<string, unknown>;
+  title?: string;
+  description?: string;
+  priority?: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL' | string;
+  status?: string;
+  risk_score?: number;
+  created_by?: string;
+  primary_entity?: string;
+  patterns?: InvestigationPattern[];
 }
 
 export interface SearchResult {
@@ -350,6 +365,16 @@ export interface SearchResult {
   label: string;
   subLabel?: string;
   risk?: string;
+}
+
+export interface WalletOutlierLead {
+  lead_id?: string;
+  entity_id?: string;
+  pattern?: string;
+  explanation?: string;
+  signals?: string[];
+  risk_score?: number;
+  txid?: string;
 }
 
 export interface WalletAnalysis {
@@ -406,7 +431,7 @@ export interface WalletAnalysis {
     priority: string | null;
     leads_count: number;
   };
-  leads?: any[];
+  leads?: WalletOutlierLead[];
   investigation_recommended: boolean;
   analyzed_at?: string;
 }

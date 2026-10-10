@@ -6,9 +6,7 @@ import {
   ShieldAlert, 
   CheckCircle, 
   Clock, 
-  Coins,
-  ArrowRight,
-  Filter
+  ArrowRight
 } from 'lucide-react';
 import { useBitcoin } from '../../context/BitcoinContext';
 import { BitcoinTransaction } from '../../types/bitcoin';

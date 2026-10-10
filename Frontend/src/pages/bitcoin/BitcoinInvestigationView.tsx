@@ -1,37 +1,22 @@
 import React, { useEffect, useState } from 'react';
 import {
-  ArrowRight,
-  AlertTriangle,
-  Shield,
   Network,
   ChevronRight,
   Target,
   Activity,
-  Users,
-  Coins,
-  Clock,
   FileText,
   Layers,
-  ShieldAlert,
   TrendingUp,
   Eye,
-  Zap,
-  ArrowDown,
   GitFork,
-  ExternalLink,
   Share2,
   CheckCircle2,
-  CheckCircle,
   Filter
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useBitcoin } from '../../context/BitcoinContext';
 import {
   InvestigationGraphNode,
-  InvestigationGraphEdge,
-  InvestigationFlowStep,
-  InvestigationLead,
-  InvestigationPattern,
 } from '../../types/bitcoin';
 
 interface Props {
@@ -78,6 +63,7 @@ const BitcoinInvestigationView: React.FC<Props> = ({ investigationId, onBack }) 
     fetchInvestigationGraph(investigationId);
     fetchInvestigationFlow(investigationId);
     fetchInvestigationLeads(investigationId);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [investigationId]);
 
   if (!activeInvestigation) {
@@ -93,8 +79,7 @@ const BitcoinInvestigationView: React.FC<Props> = ({ investigationId, onBack }) 
   }
 
   const inv = activeInvestigation;
-  const evidence = inv.evidence || {};
-  const seed = inv.seed_analysis || {};
+  const seed = (inv.seed_analysis || {}) as Record<string, string | number | undefined>;
 
   const statusColor = inv.investigation_status === 'COMPLETED'
     ? 'text-emerald-500 bg-emerald-500/15 border-emerald-500/30'
@@ -109,15 +94,15 @@ const BitcoinInvestigationView: React.FC<Props> = ({ investigationId, onBack }) 
   const filteredNodes = investigationGraph.nodes.filter(n => visibleNodeIds.has(n.id));
 
   const maxHops = investigationFlow.length > 0 
-    ? Math.max(...investigationFlow.map((f: any) => f.hop || 1)) 
+    ? Math.max(...investigationFlow.map(f => f.hop || 1)) 
     : (investigationGraph.nodes.length > 0 ? Math.min(3, Math.max(1, Math.floor(investigationGraph.nodes.length / 10))) : 3);
     
   const taintedEntitiesCount = investigationFlow.length > 0
-    ? new Set(investigationFlow.map((f: any) => f.destination_entity)).size
+    ? new Set(investigationFlow.map(f => f.destination_entity)).size
     : investigationGraph.nodes.length;
 
   const avgRetentionRate = investigationFlow.length > 0
-    ? (investigationFlow.reduce((acc: number, f: any) => acc + (typeof f.retention_rate === 'number' ? f.retention_rate : 0), 0) / investigationFlow.length).toFixed(1) + '%'
+    ? (investigationFlow.reduce((acc: number, f: { retention_rate?: number; forwarding_ratio?: number }) => acc + (typeof f.retention_rate === 'number' ? f.retention_rate : typeof f.forwarding_ratio === 'number' ? f.forwarding_ratio * 100 : 0), 0) / investigationFlow.length).toFixed(1) + '%'
     : (investigationGraph.edges.length > 0 ? '68.2%' : '--');
 
   return (
@@ -266,7 +251,7 @@ const BitcoinInvestigationView: React.FC<Props> = ({ investigationId, onBack }) 
           <div className="p-4 bg-[var(--bg-elevated)] rounded-xl border border-[var(--border-default)]">
             <span className="text-[10px] font-bold text-[var(--text-muted)] font-sans uppercase block mb-1">Total Volume</span>
             <span className="text-xl font-bold text-emerald-500">
-              ₿ {(seed.total_volume_btc || 89.60).toFixed(2)}
+              ₿ {Number(seed.total_volume_btc || 89.60).toFixed(2)}
             </span>
           </div>
 
@@ -441,7 +426,7 @@ const BitcoinInvestigationView: React.FC<Props> = ({ investigationId, onBack }) 
             { pattern_type: 'Tor Exit Relay Interaction', confidence: '0.92', severity: 78, evidence: 'Input addresses cross-referenced with known darknet node registry.' },
             { pattern_type: 'High-Velocity Dispersal', confidence: '0.89', severity: 72, evidence: 'Rapid fan-out into 8 recipient counterparties within 35 minutes.' },
             { pattern_type: 'CoinJoin Mixing Structural Fingerprint', confidence: '0.95', severity: 80, evidence: 'Equal-denomination outputs detected in multi-party transaction.' }
-          ]).map((p: any, idx: number) => (
+          ]).map((p, idx: number) => (
             <div key={idx} className="p-4 bg-[var(--bg-elevated)] rounded-xl border border-[var(--border-default)] space-y-2">
               <div className="flex items-center justify-between">
                 <span className="text-xs font-bold text-[var(--text-primary)] flex items-center gap-1.5">
@@ -503,22 +488,19 @@ const BitcoinInvestigationView: React.FC<Props> = ({ investigationId, onBack }) 
 
         <div className="space-y-2.5">
           {investigationLeads.length > 0 ? (
-            investigationLeads.map((lead: any, idx: number) => (
-              <div key={idx} className="p-4 bg-[var(--bg-elevated)] rounded-xl border border-[var(--border-default)] flex items-center justify-between gap-3">
-                <div className="flex items-center gap-3">
-                  <span className={`px-2.5 py-1 rounded-lg text-xs font-bold font-mono border ${
-                    lead.priority === 'P1' ? 'bg-red-500/20 text-red-500 border-red-500/50' :
-                    lead.priority === 'P2' ? 'bg-orange-500/20 text-orange-500 border-orange-500/50' :
-                    lead.priority === 'P3' ? 'bg-amber-500/20 text-amber-500 border-amber-500/50' :
-                    'bg-emerald-500/20 text-emerald-500 border-emerald-500/50'
-                  }`}>
-                    {lead.priority || 'P3'}
-                  </span>
-                  <div>
-                    <span className="font-mono text-xs font-bold text-[var(--text-primary)]">{lead.entity_id}</span>
-                    <span className="text-[10px] text-[var(--text-muted)] block">Risk Score: {typeof lead.composite_score === 'number' ? lead.composite_score.toFixed(1) : (lead.composite_score || lead.risk_score || '--')}</span>
+            investigationLeads.map((lead, idx: number) => {
+              const pStyle = PRIORITY_COLORS[lead.priority] || PRIORITY_COLORS.P3;
+              return (
+                <div key={idx} className="p-4 bg-[var(--bg-elevated)] rounded-xl border border-[var(--border-default)] flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-3">
+                    <span className={`px-2.5 py-1 rounded-lg text-xs font-bold font-mono border ${pStyle.bg} ${pStyle.text} ${pStyle.border}`}>
+                      {lead.priority || 'P3'}
+                    </span>
+                    <div>
+                      <span className="font-mono text-xs font-bold text-[var(--text-primary)]">{lead.entity_id}</span>
+                      <span className="text-[10px] text-[var(--text-muted)] block">Risk Score: {typeof lead.composite_score === 'number' ? lead.composite_score.toFixed(1) : (lead.composite_score || '--')}</span>
+                    </div>
                   </div>
-                </div>
 
                 <button
                   onClick={() => navigate(`/bitcoin/wallet/${encodeURIComponent(lead.entity_id)}`)}
@@ -527,7 +509,8 @@ const BitcoinInvestigationView: React.FC<Props> = ({ investigationId, onBack }) 
                   Inspect Lead
                 </button>
               </div>
-            ))
+            );
+          })
           ) : (
             <div className="p-8 text-center bg-[var(--bg-elevated)] rounded-xl border border-[var(--border-default)]">
               <span className="text-xs text-[var(--text-muted)]">No active prioritized leads identified for this dossier.</span>

@@ -3,12 +3,8 @@ import {
   Activity, 
   Coins, 
   CreditCard, 
-  Search, 
-  CheckCircle2,
-  TrendingUp
+  Search
 } from 'lucide-react';
-import { useTransactions } from '../context/TransactionContext';
-import { useBitcoin } from '../context/BitcoinContext';
 import ThemeToggle from './ThemeToggle';
 import SearchOverlay from './SearchOverlay';
 
@@ -23,12 +19,8 @@ interface HeaderProps {
 const Header: React.FC<HeaderProps> = ({ 
   isConnected, 
   activeDomain, 
-  onDomainChange,
-  searchQuery = '',
-  onSearchChange
+  onDomainChange
 }) => {
-  const { stats } = useTransactions();
-  const { status: btcStatus } = useBitcoin();
   const [isSearchOpen, setIsSearchOpen] = React.useState(false);
 
   // Keyboard shortcut (cmd+k or ctrl+k)
@@ -123,9 +115,9 @@ const Header: React.FC<HeaderProps> = ({
             </div>
             <div className="hidden sm:block text-left">
               <div className="text-xs font-semibold text-[var(--text-primary)] leading-tight">Analyst Vinith</div>
-              <div className="text-[10px] text-emerald-500 font-medium flex items-center gap-1">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
-                Online
+              <div className={`text-[10px] ${isConnected ? 'text-emerald-500' : 'text-rose-500'} font-medium flex items-center gap-1`}>
+                <span className={`w-1.5 h-1.5 rounded-full ${isConnected ? 'bg-emerald-500' : 'bg-rose-500'} animate-pulse`}></span>
+                {isConnected ? 'Online' : 'Offline'}
               </div>
             </div>
           </div>

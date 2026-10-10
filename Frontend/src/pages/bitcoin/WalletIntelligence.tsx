@@ -16,8 +16,6 @@ import {
   Network,
   FileSearch,
   Search,
-  Layers,
-  CheckCircle2,
   AlertCircle
 } from 'lucide-react';
 import { useBitcoin } from '../../context/BitcoinContext';
@@ -26,7 +24,7 @@ import { WalletAnalysis } from '../../types/bitcoin';
 const WalletIntelligence: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { analyzeWallet, startInvestigation, setSelectedEntity } = useBitcoin();
+  const { analyzeWallet, startInvestigation, setSelectedEntity, entities } = useBitcoin();
   
   const [analysis, setAnalysis] = useState<WalletAnalysis | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(true);
@@ -46,19 +44,22 @@ const WalletIntelligence: React.FC = () => {
         if (data) {
           setAnalysis(data);
           if (data.entity?.entity_id) {
-            setSelectedEntity(data.entity.entity_id);
+            const matched = entities.find(e => e.entity_id === data.entity.entity_id);
+            if (matched) {
+              setSelectedEntity(matched);
+            }
           }
         } else {
           setError('Failed to analyze wallet or identifier not found.');
         }
       })
-      .catch((err: any) => {
-        setError(err?.message || 'Error occurred during wallet intelligence extraction.');
+      .catch((err: Error | unknown) => {
+        setError(err instanceof Error ? err.message : 'Error occurred during wallet intelligence extraction.');
       })
       .finally(() => {
         setIsAnalyzing(false);
       });
-  }, [id, analyzeWallet, setSelectedEntity]);
+  }, [id, analyzeWallet, setSelectedEntity, entities]);
 
   if (isAnalyzing) {
     return (
@@ -386,8 +387,8 @@ const WalletIntelligence: React.FC = () => {
                 <span className="text-[11px] text-[var(--text-muted)]">Ranked by ML Anomaly Score</span>
               </div>
               <div className="space-y-2.5">
-                {analysis.leads.slice(0, 3).map((lead: any, idx: number) => (
-                  <div key={lead.lead_id || idx} className="p-3 bg-[var(--bg-elevated)] rounded-lg border border-[var(--border-default)] flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                {analysis.leads.slice(0, 3).map((lead, idx) => (
+                  <div key={lead.entity_id || idx} className="p-3 bg-[var(--bg-elevated)] rounded-lg border border-[var(--border-default)] flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                     <div>
                       <div className="flex items-center gap-2">
                         <span className="text-xs font-mono font-bold text-[var(--risk-critical)]">{lead.lead_id}</span>

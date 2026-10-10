@@ -4,14 +4,10 @@ import {
   Search, 
   ChevronRight, 
   Tag, 
-  FilePlus,
-  CheckCircle,
-  Crosshair,
-  ExternalLink,
-  Coins,
-  AlertTriangle,
-  Flame,
-  Clock
+  CheckCircle, 
+  Crosshair, 
+  ExternalLink, 
+  Coins 
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useBitcoin } from '../../context/BitcoinContext';
@@ -42,6 +38,7 @@ const BitcoinRiskQueue: React.FC<Props> = ({ onSelectTx, onCreateCase, onInvesti
     priority: getLeadPriority(lead),
     activeCase: investigations.find(inv => 
       inv.primary_entity === lead.entity_id || 
+      inv.seed_entity_id === lead.entity_id ||
       inv.entities?.includes(lead.entity_id) || 
       inv.transactions?.includes(lead.txid)
     )
@@ -214,9 +211,20 @@ const BitcoinRiskQueue: React.FC<Props> = ({ onSelectTx, onCreateCase, onInvesti
                       </button>
                     )}
                     
+                    {onCreateCase && !lead.activeCase && (
+                      <button
+                        onClick={() => onCreateCase(lead)}
+                        className="inline-flex items-center text-xs font-semibold text-amber-500 hover:text-amber-600 bg-amber-500/10 border border-amber-500/30 px-3 py-1.5 rounded-lg transition-colors"
+                      >
+                        Create Case
+                      </button>
+                    )}
+                    
                     <button
                       onClick={() => {
-                        if (lead.activeCase) {
+                        if (onInvestigate) {
+                          onInvestigate(lead);
+                        } else if (lead.activeCase) {
                           navigate(`/bitcoin/investigations/${lead.activeCase.investigation_id}`);
                         } else {
                           startInvestigation(lead.entity_id);

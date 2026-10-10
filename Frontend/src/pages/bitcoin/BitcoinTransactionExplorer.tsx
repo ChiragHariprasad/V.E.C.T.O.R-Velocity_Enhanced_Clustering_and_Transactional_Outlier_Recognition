@@ -1,15 +1,9 @@
 import React from 'react';
 import { 
-  ArrowRight, 
-  ShieldAlert, 
-  CheckCircle, 
   Coins, 
-  Layers, 
   Clock, 
   Cpu, 
-  FileText, 
-  ExternalLink,
-  GitCommit,
+  GitCommit, 
   Tag
 } from 'lucide-react';
 import { useBitcoin } from '../../context/BitcoinContext';

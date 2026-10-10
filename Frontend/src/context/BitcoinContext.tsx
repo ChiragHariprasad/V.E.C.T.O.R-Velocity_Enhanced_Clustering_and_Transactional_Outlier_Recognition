@@ -176,7 +176,7 @@ export const BitcoinProvider: React.FC<{ children: ReactNode }> = ({ children })
       }
 
       // Automatically hydrate primary investigation flow & graph
-      const primaryInvId = resInvs.data.find((inv: any) => inv.investigation_id === 'INV-35C54D881B')?.investigation_id ||
+      const primaryInvId = resInvs.data.find((inv: InvestigationSummary) => inv.investigation_id === 'INV-35C54D881B')?.investigation_id ||
                            resInvs.data[0]?.investigation_id ||
                            'INV-35C54D881B';
       if (primaryInvId) {
@@ -217,6 +217,7 @@ export const BitcoinProvider: React.FC<{ children: ReactNode }> = ({ children })
       socket.off('bitcoin:newBlock', handleNewBlock);
       socket.off('bitcoin:newRiskEvent', handleNewRisk);
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const fetchGraph = async (nodeId: string) => {
@@ -304,17 +305,17 @@ export const BitcoinProvider: React.FC<{ children: ReactNode }> = ({ children })
     try {
       const res = await axios.post(`${API_BASE}/wallets/${encodeURIComponent(address)}/analyze`);
       return res.data;
-    } catch (e: any) {
-      if (e.response && e.response.status === 400) {
-        throw new Error(e.response.data?.error || 'Invalid Bitcoin address or identifier format');
+    } catch (e: unknown) {
+      if (axios.isAxiosError(e) && e.response && e.response.status === 400) {
+        throw new Error((e.response.data as { error?: string })?.error || 'Invalid Bitcoin address or identifier format');
       }
       try {
         const fallback = await axios.get(`${API_BASE}/wallets/${encodeURIComponent(address)}/analyze`);
         return fallback.data;
-      } catch (fallbackErr: any) {
+      } catch (fallbackErr: unknown) {
         console.error('Wallet analysis failed:', fallbackErr);
-        if (fallbackErr.response?.data?.error) {
-          throw new Error(fallbackErr.response.data.error);
+        if (axios.isAxiosError(fallbackErr) && (fallbackErr.response?.data as { error?: string })?.error) {
+          throw new Error((fallbackErr.response?.data as { error?: string }).error);
         }
         return null;
       }
