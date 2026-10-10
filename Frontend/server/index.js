@@ -5,8 +5,15 @@ import { MongoClient } from 'mongodb';
 import cors from 'cors';
 import fs from 'fs';
 import path from 'path';
+import { spawn, execFile } from 'child_process';
+import { fileURLToPath } from 'url';
 import { seedDatabase } from './seed.js';
 import { seedBitcoinDatabase } from './seed_bitcoin.js';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const PYTHON_CMD = process.env.PYTHON_PATH || 'python';
+const BACKEND_DIR = path.resolve(__dirname, '../../Backend');
 
 // Bitcoin Core RPC Configuration & Status Checker
 const BITCOIN_RPC_HOST = process.env.BITCOIN_RPC_HOST || '127.0.0.1';
@@ -149,20 +156,21 @@ async function checkBitcoinCoreRpc(timeoutMs = 1500) {
 
 const app = express();
 const server = http.createServer(app);
+const allowedOrigin = process.env.CORS_ORIGIN || true;
 const io = new Server(server, {
   cors: {
-    origin: 'http://localhost:5173',
+    origin: allowedOrigin,
     methods: ['GET', 'POST']
   }
 });
 
 // Middleware
-app.use(cors());
-app.use(express.json());
+app.use(cors({ origin: allowedOrigin }));
+app.use(express.json({ limit: '25mb' }));
 
 // MongoDB connection
-const mongoURL = 'mongodb://localhost:27017';
-const dbName = 'RedisTransactions';
+const mongoURL = process.env.MONGO_URI || process.env.MONGODB_URI || 'mongodb://localhost:27017';
+const dbName = process.env.MONGO_DB_NAME || 'RedisTransactions';
 const pollIntervalMs = Number(process.env.TXN_POLL_MS || 2000);
 let db;
 
@@ -952,10 +960,17 @@ app.get('/api/bitcoin/graph/:node_id', async (req, res) => {
   }
 });
 
-// 6. Risk Queue
+// 6. Risk Queue (with pagination and bounded limits)
 app.get('/api/bitcoin/risk-queue', async (req, res) => {
   try {
-    const leads = await db.collection('bitcoin_risk_events').find().sort({ risk_score: -1, _id: -1 }).toArray();
+    const limit = Math.min(parseInt(req.query.limit || '100', 10), 500);
+    const skip = Math.max(0, parseInt(req.query.skip || '0', 10));
+    const leads = await db.collection('bitcoin_risk_events')
+      .find()
+      .sort({ risk_score: -1, _id: -1 })
+      .skip(skip)
+      .limit(limit)
+      .toArray();
     res.json(leads);
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -1019,7 +1034,25 @@ app.get('/api/bitcoin/clusters', async (req, res) => {
 // 8. Investigations — Extended with full investigation lifecycle
 app.get('/api/bitcoin/investigations', async (req, res) => {
   try {
-    const invs = await db.collection('bitcoin_investigations').find().sort({ created_at: -1, _id: -1 }).toArray();
+    const limit = Math.min(parseInt(req.query.limit || '50', 10), 200);
+    const skip = Math.max(0, parseInt(req.query.skip || '0', 10));
+
+    // Exclude massive graph payloads in summary list to avoid multi-megabyte transfers
+    const invs = await db.collection('bitcoin_investigations')
+      .find({}, {
+        projection: {
+          graph_nodes: 0,
+          graph_edges: 0,
+          flow_path: 0,
+          evidence: 0,
+          risk_propagation_results: 0,
+        }
+      })
+      .sort({ created_at: -1, _id: -1 })
+      .skip(skip)
+      .limit(limit)
+      .toArray();
+
     // Return summary view for listing
     const summaries = invs.map(inv => ({
       investigation_id: inv.investigation_id,
@@ -1034,15 +1067,14 @@ app.get('/api/bitcoin/investigations', async (req, res) => {
       discovered_transactions_count: (inv.discovered_transactions || []).length,
       detected_patterns_count: (inv.detected_patterns || []).length,
       leads_count: (inv.final_leads || []).length,
-      // Backward compat with old simple investigations
       title: inv.title || `Investigation: ${inv.investigation_id}`,
       description: inv.description || (inv.trigger_reasons || []).join('; '),
       priority: inv.priority || (inv.initial_risk_score >= 75 ? 'CRITICAL' : inv.initial_risk_score >= 50 ? 'HIGH' : 'MEDIUM'),
       status: inv.investigation_status || inv.status || 'OPEN',
       risk_score: inv.initial_risk_score || inv.risk_score || 0,
       created_by: inv.created_by || 'V.E.C.T.O.R Auto',
-      entities: inv.discovered_entities || inv.entities || [],
-      transactions: inv.discovered_transactions || inv.transactions || [],
+      entities: (inv.discovered_entities || inv.entities || []).slice(0, 10),
+      transactions: (inv.discovered_transactions || inv.transactions || []).slice(0, 10),
       notes: inv.notes || '',
     }));
     res.json(summaries);
@@ -1053,36 +1085,78 @@ app.get('/api/bitcoin/investigations', async (req, res) => {
 
 app.post('/api/bitcoin/investigations', async (req, res) => {
   try {
-    const body = req.body;
-    const newInv = {
-      investigation_id: `INV-${Date.now().toString().slice(-6)}`,
-      title: body.title || 'Untitled Investigation',
-      description: body.description || '',
-      priority: body.priority || 'MEDIUM',
-      status: 'OPEN',
-      investigation_status: 'OPEN',
-      risk_score: body.risk_score || 50,
-      initial_risk_score: body.risk_score || 50,
-      seed_entity_id: body.seed_entity_id || (body.entities || [])[0] || '',
-      seed_transaction_id: body.seed_txid || (body.transactions || [])[0] || '',
-      created_by: body.created_by || 'Analyst',
-      created_at: new Date().toISOString(),
-      entities: body.entities || [],
-      transactions: body.transactions || [],
-      discovered_entities: body.entities || [],
-      discovered_transactions: body.transactions || [],
-      trigger_reasons: body.trigger_reasons || ['manual_investigation'],
-      investigation_depth: 0,
-      detected_patterns: [],
-      evidence: {},
-      final_leads: [],
-      flow_path: [],
-      graph_nodes: [],
-      graph_edges: [],
-      notes: body.notes || ''
-    };
-    await db.collection('bitcoin_investigations').insertOne(newInv);
-    res.status(201).json(newInv);
+    if (process.env.DEMO_READ_ONLY === 'true') {
+      return res.status(403).json({
+        error: 'Investigation creation is disabled in public demo read-only mode.',
+        mode: 'DEMO_READ_ONLY'
+      });
+    }
+
+    const body = req.body || {};
+    const seedEntityId = body.seed_entity_id || (body.entities || [])[0] || '';
+    const seedTxid = body.seed_txid || body.seed_transaction_id || (body.transactions || [])[0] || '';
+
+    if (!seedEntityId && !seedTxid) {
+      return res.status(400).json({
+        error: 'Must specify at least seed_entity_id or seed_txid to start an investigation'
+      });
+    }
+
+    const title = body.title || `Targeted Investigation: ${seedEntityId || seedTxid.slice(0, 10)}`;
+    const priority = body.priority || 'HIGH';
+    const notes = body.notes || '';
+
+    // Execute the Python investigation engine
+    const args = [
+      '-m', 'bitcoin.run_investigation',
+      '--seed-entity', seedEntityId,
+      '--seed-txid', seedTxid,
+      '--title', title,
+      '--priority', priority,
+      '--notes', notes
+    ];
+
+    execFile(
+      PYTHON_CMD,
+      args,
+      { cwd: BACKEND_DIR, maxBuffer: 25 * 1024 * 1024, timeout: 25000 },
+      async (err, stdout, stderr) => {
+        if (err) {
+          console.error('Python investigation execution error:', err.message, stderr);
+          const failedInv = {
+            investigation_id: `INV-FAIL-${Date.now().toString().slice(-6)}`,
+            seed_entity_id: seedEntityId,
+            seed_transaction_id: seedTxid,
+            title,
+            priority,
+            investigation_status: 'FAILED',
+            status: 'FAILED',
+            error: err.message || stderr,
+            created_at: new Date().toISOString(),
+            created_by: body.created_by || 'Analyst',
+            notes,
+          };
+          await db.collection('bitcoin_investigations').insertOne(failedInv);
+          return res.status(500).json({
+            error: 'Investigation engine execution failed',
+            details: err.message,
+            investigation: failedInv
+          });
+        }
+
+        try {
+          const invResult = JSON.parse(stdout);
+          io.emit('bitcoin:investigationCreated', invResult);
+          return res.status(201).json(invResult);
+        } catch (parseErr) {
+          console.error('Failed to parse investigation JSON output:', parseErr, stdout);
+          return res.status(500).json({
+            error: 'Failed to parse investigation results from analytical engine',
+            raw_output: stdout.slice(0, 500)
+          });
+        }
+      }
+    );
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -1185,19 +1259,8 @@ app.get('/api/bitcoin/geo-stats', async (req, res) => {
 
     if (geoAgg.length > 0) return res.json(geoAgg);
 
-    // Static fallback for demo
-    res.json([
-      { country: 'US', tx_count: 145, btc_volume: 234.56 },
-      { country: 'DE', tx_count: 89, btc_volume: 156.23 },
-      { country: 'RU', tx_count: 67, btc_volume: 445.12 },
-      { country: 'CN', tx_count: 54, btc_volume: 189.34 },
-      { country: 'NL', tx_count: 42, btc_volume: 312.78 },
-      { country: 'RO', tx_count: 38, btc_volume: 89.45 },
-      { country: 'SG', tx_count: 31, btc_volume: 67.89 },
-      { country: 'GB', tx_count: 28, btc_volume: 45.23 },
-      { country: 'JP', tx_count: 22, btc_volume: 34.56 },
-      { country: 'XX', tx_count: 19, btc_volume: 567.89 }
-    ]);
+    // Return empty array when no data exists (no fabricated countries)
+    res.json([]);
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -1233,35 +1296,133 @@ app.get('/api/bitcoin/ip-correlations', async (req, res) => {
   }
 });
 
-// 11. Bulk File Ingestion Endpoint (CSV/JSON upload)
+// 11. Bulk Ingestion Endpoint (Executes real V.E.C.T.O.R intelligence pipeline)
 app.post('/api/bitcoin/ingest', async (req, res) => {
   try {
-    const { transactions } = req.body;
-    if (!transactions || !Array.isArray(transactions)) {
-      return res.status(400).json({ error: 'Request body must contain a "transactions" array' });
+    if (process.env.DEMO_READ_ONLY === 'true') {
+      return res.status(403).json({
+        error: 'Transaction ingestion is disabled in public demo read-only mode.',
+        mode: 'DEMO_READ_ONLY'
+      });
     }
 
-    // Insert raw transactions with minimal processing (server-side)
+    const { transactions } = req.body || {};
+    if (!transactions || !Array.isArray(transactions) || transactions.length === 0) {
+      return res.status(400).json({
+        error: 'Request body must contain a non-empty "transactions" array'
+      });
+    }
+
+    if (transactions.length > 50) {
+      return res.status(413).json({
+        error: 'Batch size exceeds maximum limit of 50 transactions per real-time analytical ingestion request.'
+      });
+    }
+
+    // Validate transaction structures
+    for (let i = 0; i < transactions.length; i++) {
+      const tx = transactions[i];
+      if (!tx || typeof tx !== 'object') {
+        return res.status(400).json({ error: `Transaction at index ${i} is not a valid object` });
+      }
+    }
+
+    // Spawn the Python transaction analysis engine
+    const child = spawn(PYTHON_CMD, ['-m', 'bitcoin.analyze_transaction', '--stdin'], {
+      cwd: BACKEND_DIR,
+      stdio: ['pipe', 'pipe', 'pipe']
+    });
+
+    let stdoutData = '';
+    let stderrData = '';
+
+    child.stdout.on('data', chunk => { stdoutData += chunk; });
+    child.stderr.on('data', chunk => { stderrData += chunk; });
+
+    child.on('close', code => {
+      if (code !== 0) {
+        console.error('analyze_transaction failed with exit code', code, stderrData);
+        return res.status(500).json({
+          error: 'Transaction analysis pipeline failed',
+          details: stderrData.slice(0, 500)
+        });
+      }
+
+      try {
+        const result = JSON.parse(stdoutData);
+        // Emit newly analyzed transactions and alerts via socket
+        if (result.transactions && Array.isArray(result.transactions)) {
+          for (const tx of result.transactions) {
+            io.emit('bitcoin:newTransaction', tx);
+          }
+        }
+        if (result.alerts && Array.isArray(result.alerts)) {
+          for (const alert of result.alerts) {
+            io.emit('bitcoin:newAlert', alert);
+          }
+        }
+
+        res.status(201).json({
+          status: 'SUCCESS',
+          ingested: result.ingested_count,
+          alerts: result.alerts_count,
+          elapsed_ms: result.elapsed_ms,
+          transactions: result.transactions,
+          message: `Successfully analyzed and ingested ${result.ingested_count} transactions through V.E.C.T.O.R intelligence pipeline`
+        });
+      } catch (err) {
+        console.error('Failed to parse analytical ingestion output:', err, stdoutData);
+        res.status(500).json({
+          error: 'Failed to parse analytical output',
+          raw: stdoutData.slice(0, 500)
+        });
+      }
+    });
+
+    child.stdin.write(JSON.stringify(transactions));
+    child.stdin.end();
+
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// 11b. Raw Ingestion Endpoint (Records raw transactions with explicit pending status)
+app.post('/api/bitcoin/ingest/raw', async (req, res) => {
+  try {
+    if (process.env.DEMO_READ_ONLY === 'true') {
+      return res.status(403).json({
+        error: 'Raw transaction ingestion is disabled in public demo read-only mode.',
+        mode: 'DEMO_READ_ONLY'
+      });
+    }
+
+    const { transactions } = req.body || {};
+    if (!transactions || !Array.isArray(transactions) || transactions.length === 0) {
+      return res.status(400).json({ error: 'Request body must contain a non-empty "transactions" array' });
+    }
+
+    if (transactions.length > 200) {
+      return res.status(413).json({
+        error: 'Raw batch size exceeds maximum limit of 200 transactions.'
+      });
+    }
+
     const docs = transactions.map(tx => ({
       ...tx,
       timestamp: tx.timestamp || Math.floor(Date.now() / 1000),
-      risk_score: tx.risk_score || 0,
-      risk_level: tx.risk_level || 'LOW',
-      signals: tx.signals || [],
-      explanation: tx.explanation || '',
-      status: 'confirmed',
+      status: 'pending_analysis',
+      analysis_status: 'RAW_UNANALYZED',
+      risk_score: null,
+      risk_level: 'UNANALYZED',
+      created_at: new Date().toISOString()
     }));
 
     await db.collection('bitcoin_transactions').insertMany(docs);
-
-    // Emit new transactions via socket
-    for (const doc of docs) {
-      io.emit('bitcoin:newTransaction', doc);
-    }
-
     res.status(201).json({
       ingested: docs.length,
-      message: `Successfully ingested ${docs.length} transactions`
+      status: 'RAW_INGESTED',
+      message: `Successfully recorded ${docs.length} raw transactions (pending analytical pipeline)`
     });
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -1292,6 +1453,19 @@ app.get('/api/bitcoin/risk-propagation', async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 });
+
+// Static SPA serving for production
+const distPath = path.resolve(__dirname, '../dist');
+if (fs.existsSync(distPath)) {
+  console.log('Serving production frontend from:', distPath);
+  app.use(express.static(distPath));
+  app.get('*', (req, res, next) => {
+    if (req.path.startsWith('/api') || req.path.startsWith('/socket.io')) {
+      return next();
+    }
+    res.sendFile(path.join(distPath, 'index.html'));
+  });
+}
 
 // Start server
 const PORT = process.env.PORT || 3001;

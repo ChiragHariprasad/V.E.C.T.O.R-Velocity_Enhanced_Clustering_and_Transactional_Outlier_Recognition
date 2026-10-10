@@ -27,10 +27,12 @@ class UTXOManager:
         spent_utxo_values = []
 
         # 1. Spend inputs
-        for inp in tx.get("inputs", []):
+        for i, inp in enumerate(tx.get("inputs", [])):
             if inp.get("is_coinbase"):
                 continue
-            prev_key = f"{inp['prev_txid']}:{inp['prev_vout']}"
+            prev_txid = inp.get("prev_txid") or f"prev_{txid}_{i}"
+            prev_vout = inp.get("prev_vout", i)
+            prev_key = f"{prev_txid}:{prev_vout}"
             if prev_key in self._utxo_cache:
                 utxo = self._utxo_cache[prev_key]
                 utxo["spent"] = True
@@ -49,15 +51,16 @@ class UTXOManager:
                     self._address_utxos[addr].remove(prev_key)
 
         # 2. Create new outputs
-        for out in tx.get("outputs", []):
+        for i, out in enumerate(tx.get("outputs", [])):
             if out.get("is_op_return"):
                 continue
-            out_key = f"{txid}:{out['vout']}"
+            vout = out.get("vout", i)
+            out_key = f"{txid}:{vout}"
             utxo_entry = {
                 "utxo_id": out_key,
                 "txid": txid,
-                "vout": out["vout"],
-                "value_btc": out["value_btc"],
+                "vout": vout,
+                "value_btc": float(out.get("value_btc", 0.0)),
                 "address": out.get("address"),
                 "script_type": out.get("script_type", "UNKNOWN"),
                 "created_height": block_height,

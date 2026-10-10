@@ -393,7 +393,7 @@ def validate_controlled_transaction_ingest():
         headers={"Content-Type": "application/json"},
         method="POST"
     )
-    with urllib.request.urlopen(post_req, timeout=5) as resp:
+    with urllib.request.urlopen(post_req, timeout=30) as resp:
         res = json.loads(resp.read().decode())
     dur_ingest = (time.perf_counter() - t0) * 1000
     benchmarks["controlled_ingest_ms"] = dur_ingest

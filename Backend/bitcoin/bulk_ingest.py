@@ -28,7 +28,7 @@ from bitcoin.risk_engine import BitcoinRiskEngine
 from bitcoin.utxo_manager import UTXOManager
 from bitcoin.ip_correlator import IPWalletCorrelator
 from bitcoin.risk_propagation import RiskPropagationEngine
-from bitcoin.schemas import BITCOIN_FEATURE_KEYS
+from bitcoin.schemas import BITCOIN_FEATURE_KEYS, get_risk_level
 from bitcoin.investigation_engine import InvestigationTrigger, InvestigationEngine
 from bitcoin.ml_inference import BitcoinMLInferenceEngine, ML_UNAVAILABLE
 
@@ -225,7 +225,7 @@ class BulkIngestPipeline:
     and risk propagation.
     """
 
-    def __init__(self, persist_to_mongo: bool = True):
+    def __init__(self, persist_to_mongo: bool = True, drop_existing: bool = False):
         self.entity_profiler = EntityProfiler()
         self.graph = BitcoinTransactionGraph()
         self.risk_engine = BitcoinRiskEngine()
@@ -234,6 +234,7 @@ class BulkIngestPipeline:
         self.risk_propagation = RiskPropagationEngine()
         self.ml_inference = BitcoinMLInferenceEngine()
         self.persist = persist_to_mongo
+        self.drop_existing = drop_existing
 
         self.db = None
         if persist_to_mongo:
@@ -350,8 +351,6 @@ class BulkIngestPipeline:
             cluster_id = ml_result.get("cluster_id")
 
             propagated_risk = self.risk_propagation.get_risk_score(entity_id)
-            if tx.get("is_illicit") and ml_score is not None:
-                ml_score = max(ml_score, 0.85)
 
             # Multi-model risk scoring
             risk_eval = self.risk_engine.evaluate_risk(
@@ -362,9 +361,10 @@ class BulkIngestPipeline:
                 graph_stats=graph_stats,
             )
 
-            # Add propagated risk contribution
+            # Add propagated risk contribution and reclassify using canonical get_risk_level
             final_risk = min(100.0, risk_eval["risk_score"] + propagated_risk * 15.0)
             risk_eval["risk_score"] = round(final_risk, 2)
+            risk_eval["risk_level"] = get_risk_level(final_risk)
 
             # Enrich transaction
             tx["risk_score"] = risk_eval["risk_score"]
@@ -476,22 +476,31 @@ class BulkIngestPipeline:
     def _persist_results(self):
         """Persist processed transactions, entities, and alerts to MongoDB."""
         logger.info("   Persisting to MongoDB...")
+        from pymongo import UpdateOne
 
-        # Clear existing bitcoin data
-        for coll_name in ["bitcoin_transactions", "bitcoin_entities", "bitcoin_risk_events",
-                          "bitcoin_blocks", "bitcoin_ip_correlations", "bitcoin_investigations"]:
-            self.db[coll_name].delete_many({})
+        # Destructive replacement is strictly opt-in via self.drop_existing
+        if self.drop_existing:
+            logger.info("   [drop_existing=True] Clearing existing bitcoin collections before write...")
+            for coll_name in ["bitcoin_transactions", "bitcoin_entities", "bitcoin_risk_events",
+                              "bitcoin_blocks", "bitcoin_ip_correlations", "bitcoin_investigations",
+                              "bitcoin_clusters"]:
+                self.db[coll_name].delete_many({})
+        else:
+            logger.info("   [drop_existing=False] Preserving existing data via safe upserts...")
 
-        # Insert transactions
+        # Persist transactions
         if self.processed_txs:
-            # Remove non-serializable fields
-            clean_txs = []
-            for tx in self.processed_txs:
-                clean = {k: v for k, v in tx.items() if k != "_id"}
-                clean_txs.append(clean)
-            self.db["bitcoin_transactions"].insert_many(clean_txs)
+            clean_txs = [{k: v for k, v in tx.items() if k != "_id"} for tx in self.processed_txs]
+            if self.drop_existing:
+                self.db["bitcoin_transactions"].insert_many(clean_txs)
+            else:
+                tx_ops = [
+                    UpdateOne({"txid": tx["txid"]}, {"$set": tx}, upsert=True)
+                    for tx in clean_txs
+                ]
+                self.db["bitcoin_transactions"].bulk_write(tx_ops, ordered=False)
 
-        # Build and insert entity profiles with real accounting and cluster assignments
+        # Build and persist entity profiles with real accounting and cluster assignments
         entity_map = {}
         for tx in self.processed_txs:
             eid = tx.get("entity_id", "")
@@ -526,7 +535,7 @@ class BulkIngestPipeline:
             if tx.get("cluster_id") is not None:
                 entity_map[eid]["cluster_id"] = tx.get("cluster_id")
             entity_map[eid]["risk_score"] = max(entity_map[eid]["risk_score"], tx.get("risk_score", 0))
-            entity_map[eid]["risk_level"] = tx.get("risk_level", entity_map[eid]["risk_level"])
+            entity_map[eid]["risk_level"] = get_risk_level(entity_map[eid]["risk_score"])
 
         # Accurate accounting derived from transaction UTXOs
         for eid, profile in entity_map.items():
@@ -560,7 +569,14 @@ class BulkIngestPipeline:
             profile["velocity_24h"] = round(float(v24h), 2)
 
         if entity_map:
-            self.db["bitcoin_entities"].insert_many(list(entity_map.values()))
+            if self.drop_existing:
+                self.db["bitcoin_entities"].insert_many(list(entity_map.values()))
+            else:
+                entity_ops = [
+                    UpdateOne({"entity_id": eid}, {"$set": prof}, upsert=True)
+                    for eid, prof in entity_map.items()
+                ]
+                self.db["bitcoin_entities"].bulk_write(entity_ops, ordered=False)
 
         # Aggregate real clusters from ingested entities and persist
         cluster_groups: Dict[int, List[Dict[str, Any]]] = {}
@@ -594,26 +610,47 @@ class BulkIngestPipeline:
             })
 
         if cluster_docs:
-            self.db["bitcoin_clusters"].delete_many({})
-            self.db["bitcoin_clusters"].insert_many(cluster_docs)
+            if self.drop_existing:
+                self.db["bitcoin_clusters"].insert_many(cluster_docs)
+            else:
+                cluster_ops = [
+                    UpdateOne({"cluster_id": c["cluster_id"]}, {"$set": c}, upsert=True)
+                    for c in cluster_docs
+                ]
+                self.db["bitcoin_clusters"].bulk_write(cluster_ops, ordered=False)
 
         # Insert risk events (alerts)
         if self.alert_queue:
-            self.db["bitcoin_risk_events"].insert_many(self.alert_queue)
+            if self.drop_existing:
+                self.db["bitcoin_risk_events"].insert_many(self.alert_queue)
+            else:
+                alert_ops = [
+                    UpdateOne({"txid": a["txid"]}, {"$set": a}, upsert=True)
+                    for a in self.alert_queue
+                ]
+                self.db["bitcoin_risk_events"].bulk_write(alert_ops, ordered=False)
 
         # Insert geo/IP correlation stats
         geo_stats = self.ip_correlator.get_geo_stats()
         if geo_stats:
-            self.db["bitcoin_ip_correlations"].insert_many(geo_stats)
+            if self.drop_existing:
+                self.db["bitcoin_ip_correlations"].insert_many(geo_stats)
+            else:
+                geo_ops = [
+                    UpdateOne({"country": g["country"]}, {"$set": g}, upsert=True)
+                    for g in geo_stats if "country" in g
+                ]
+                if geo_ops:
+                    self.db["bitcoin_ip_correlations"].bulk_write(geo_ops, ordered=False)
 
         # Insert block summary with real derived block height (or None if unconfirmed)
         heights = [tx["block_height"] for tx in self.processed_txs if tx.get("block_height") is not None]
         summary_height = max(heights) if heights else None
         self.db["bitcoin_blocks"].insert_one({
             "height": summary_height,
-            "hash": "bulk_ingest_batch",
+            "hash": f"bulk_ingest_batch_{int(time.time())}",
             "time": int(time.time()),
-            "timestamp": datetime.utcnow().isoformat() + "Z",
+            "timestamp": datetime.now(timezone.utc).isoformat(),
             "tx_count": len(self.processed_txs),
             "size": len(self.processed_txs) * 250,
             "status": "confirmed",
@@ -621,12 +658,18 @@ class BulkIngestPipeline:
 
         # Insert investigations
         if self.investigations:
-            # Clean investigation data for MongoDB (convert sets to lists etc)
             clean_invs = []
             for inv in self.investigations:
                 clean = {k: v for k, v in inv.items() if k != "_id"}
                 clean_invs.append(clean)
-            self.db["bitcoin_investigations"].insert_many(clean_invs)
+            if self.drop_existing:
+                self.db["bitcoin_investigations"].insert_many(clean_invs)
+            else:
+                inv_ops = [
+                    UpdateOne({"investigation_id": inv["investigation_id"]}, {"$set": inv}, upsert=True)
+                    for inv in clean_invs
+                ]
+                self.db["bitcoin_investigations"].bulk_write(inv_ops, ordered=False)
 
         # Persist verified system telemetry (measured throughput & inference latency)
         elapsed_ingest = time.time() - getattr(self, "_ingest_start_time", time.time())
@@ -720,6 +763,7 @@ def main():
     parser.add_argument("--input", required=True, help="Input file path (CSV/JSON/XML)")
     parser.add_argument("--format", choices=["csv", "json", "xml"], default="csv", help="Input format")
     parser.add_argument("--no-persist", action="store_true", help="Skip MongoDB persistence")
+    parser.add_argument("--drop-existing", action="store_true", help="Explicitly clear existing Bitcoin collections before persisting")
     args = parser.parse_args()
 
     # Parse input
@@ -733,7 +777,7 @@ def main():
         raise ValueError(f"Unsupported format: {args.format}")
 
     # Run pipeline
-    pipeline = BulkIngestPipeline(persist_to_mongo=not args.no_persist)
+    pipeline = BulkIngestPipeline(persist_to_mongo=not args.no_persist, drop_existing=args.drop_existing)
     summary = pipeline.ingest(transactions)
 
     # Print summary

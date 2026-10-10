@@ -92,7 +92,7 @@ const BitcoinOverview: React.FC<BitcoinOverviewProps> = ({ onOpenTab }) => {
   const riskDonutData = {
     labels: ['Critical Risk', 'High Risk', 'Medium Risk', 'Low Risk'],
     datasets: [{
-      data: totalLeads > 0 ? [criticalCount, highCount, medCount, lowCount] : [1, 2, 4, 3],
+      data: totalLeads > 0 ? [criticalCount, highCount, medCount, lowCount] : [0, 0, 0, 0],
       backgroundColor: ['#ef4444', '#f97316', '#eab308', '#10b981'],
       borderColor: isLight ? '#ffffff' : '#0a1020',
       borderWidth: 2,
@@ -205,7 +205,7 @@ const BitcoinOverview: React.FC<BitcoinOverviewProps> = ({ onOpenTab }) => {
                 <ShieldAlert className="w-3.5 h-3.5" /> PRIORITY INVESTIGATION DOSSIER
               </span>
               <span className="px-2 py-0.5 rounded text-[11px] font-mono font-semibold bg-[var(--bg-elevated)] border border-[var(--border-default)] text-[var(--text-muted)]">
-                Case #{primaryInvestigation?.investigation_id || 'INV-35C54D881B'}
+                Case #{primaryInvestigation?.investigation_id || (investigations[0]?.investigation_id || 'STANDBY')}
               </span>
               <span className="px-2 py-0.5 rounded text-[11px] font-semibold bg-emerald-500/15 text-emerald-500 border border-emerald-500/30">
                 ACTIVE MONITORING
@@ -213,11 +213,11 @@ const BitcoinOverview: React.FC<BitcoinOverviewProps> = ({ onOpenTab }) => {
             </div>
 
             <h1 className="text-2xl sm:text-3xl font-black text-[var(--text-primary)] tracking-tight">
-              Target Seed Entity: <span className="font-mono text-[var(--accent-primary)]">{primaryEntityId}</span>
+              Target Seed Entity: <span className="font-mono text-[var(--accent-primary)]">{primaryEntityId || 'AWAITING SEED'}</span>
             </h1>
 
             <p className="text-xs sm:text-sm text-[var(--text-muted)] leading-relaxed">
-              {primaryInvestigation?.description || 'Consecutive peel-chain structure identified with asymmetric change splits. Isolation Forest Anomaly Score: 1.00 (Outlier Cluster #0: High-Velocity Mixer).'}
+              {primaryInvestigation?.description || (investigations[0]?.description || 'Awaiting automated risk queue investigation trigger.')}
             </p>
           </div>
 

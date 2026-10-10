@@ -213,14 +213,14 @@ const BitcoinInvestigationView: React.FC<Props> = ({ investigationId, onBack }) 
               Cluster #{seed.cluster_id ?? 0}
             </span>
             <div className="mt-1 text-xs text-[var(--text-muted)] font-semibold">
-              {seed.cluster_archetype || 'High-Velocity Mixer Community'}
+              {seed.cluster_archetype || (seed.cluster_id !== undefined ? `Behavioral Cluster #${seed.cluster_id}` : 'Unassigned Community')}
             </div>
           </div>
         </div>
 
         <div className="p-4 bg-[var(--bg-elevated)] rounded-xl border border-[var(--border-subtle)] text-xs leading-relaxed text-[var(--text-secondary)]">
           <span className="font-bold text-[var(--accent-primary)] mr-1">Case Trigger Summary:</span>
-          {inv.description || 'Target entity exhibited severe velocity anomalies and peeling signatures indicative of automated mixer infrastructure.'}
+          {inv.description || 'Target entity registered for investigation evaluation.'}
         </div>
       </div>
 
@@ -238,26 +238,26 @@ const BitcoinInvestigationView: React.FC<Props> = ({ investigationId, onBack }) 
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-xs font-mono">
           <div className="p-4 bg-[var(--bg-elevated)] rounded-xl border border-[var(--border-default)]">
             <span className="text-[10px] font-bold text-[var(--text-muted)] font-sans uppercase block mb-1">1H Velocity</span>
-            <span className="text-xl font-bold text-[var(--accent-primary)]">{seed.velocity_1h || 2.0}</span>
+            <span className="text-xl font-bold text-[var(--accent-primary)]">{seed.velocity_1h ?? 0.0}</span>
             <span className="text-[10px] text-[var(--text-muted)] font-sans ml-1">tx/hr</span>
           </div>
 
           <div className="p-4 bg-[var(--bg-elevated)] rounded-xl border border-[var(--border-default)]">
             <span className="text-[10px] font-bold text-[var(--text-muted)] font-sans uppercase block mb-1">24H Velocity</span>
-            <span className="text-xl font-bold text-[var(--text-primary)]">{seed.velocity_24h || 21.0}</span>
+            <span className="text-xl font-bold text-[var(--text-primary)]">{seed.velocity_24h ?? 0.0}</span>
             <span className="text-[10px] text-[var(--text-muted)] font-sans ml-1">tx/day</span>
           </div>
 
           <div className="p-4 bg-[var(--bg-elevated)] rounded-xl border border-[var(--border-default)]">
             <span className="text-[10px] font-bold text-[var(--text-muted)] font-sans uppercase block mb-1">Total Volume</span>
             <span className="text-xl font-bold text-emerald-500">
-              ₿ {Number(seed.total_volume_btc || 89.60).toFixed(2)}
+              ₿ {Number(seed.total_volume_btc ?? 0).toFixed(2)}
             </span>
           </div>
 
           <div className="p-4 bg-[var(--bg-elevated)] rounded-xl border border-[var(--border-default)]">
             <span className="text-[10px] font-bold text-[var(--text-muted)] font-sans uppercase block mb-1">Peer Diversity</span>
-            <span className="text-xl font-bold text-[var(--text-primary)]">{seed.counterparty_diversity || 13}</span>
+            <span className="text-xl font-bold text-[var(--text-primary)]">{seed.counterparty_diversity ?? 0}</span>
             <span className="text-[10px] text-[var(--text-muted)] font-sans ml-1">peers</span>
           </div>
         </div>
@@ -420,29 +420,30 @@ const BitcoinInvestigationView: React.FC<Props> = ({ investigationId, onBack }) 
           </h2>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-          {(inv.patterns && inv.patterns.length > 0 ? inv.patterns : [
-            { pattern_type: 'Peel Chain Splitting', confidence: '0.98', severity: 85, evidence: 'Asymmetric change split observed across 14 consecutive transactions.' },
-            { pattern_type: 'Tor Exit Relay Interaction', confidence: '0.92', severity: 78, evidence: 'Input addresses cross-referenced with known darknet node registry.' },
-            { pattern_type: 'High-Velocity Dispersal', confidence: '0.89', severity: 72, evidence: 'Rapid fan-out into 8 recipient counterparties within 35 minutes.' },
-            { pattern_type: 'CoinJoin Mixing Structural Fingerprint', confidence: '0.95', severity: 80, evidence: 'Equal-denomination outputs detected in multi-party transaction.' }
-          ]).map((p, idx: number) => (
-            <div key={idx} className="p-4 bg-[var(--bg-elevated)] rounded-xl border border-[var(--border-default)] space-y-2">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-bold text-[var(--text-primary)] flex items-center gap-1.5">
-                  <span className="w-2 h-2 rounded-full bg-[var(--accent-primary)]" />
-                  {p.pattern_type}
-                </span>
-                <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded bg-[var(--risk-critical)]/15 text-[var(--risk-critical)]">
-                  Severity: {p.severity}
-                </span>
+        {(!inv.patterns || inv.patterns.length === 0) ? (
+          <div className="p-6 text-center text-xs text-[var(--text-muted)] border border-dashed border-[var(--border-subtle)] rounded-xl">
+            No heuristic behavioral signatures recorded for this investigation scope.
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            {inv.patterns.map((p, idx: number) => (
+              <div key={idx} className="p-4 bg-[var(--bg-elevated)] rounded-xl border border-[var(--border-default)] space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-[var(--text-primary)] flex items-center gap-1.5">
+                    <span className="w-2 h-2 rounded-full bg-[var(--accent-primary)]" />
+                    {p.pattern_type}
+                  </span>
+                  <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded bg-[var(--risk-critical)]/15 text-[var(--risk-critical)]">
+                    Severity: {p.severity}
+                  </span>
+                </div>
+                <p className="text-xs text-[var(--text-muted)] leading-relaxed">
+                  {p.evidence}
+                </p>
               </div>
-              <p className="text-xs text-[var(--text-muted)] leading-relaxed">
-                {p.evidence}
-              </p>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* ========================================================================= */}

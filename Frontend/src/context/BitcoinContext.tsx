@@ -21,7 +21,10 @@ import {
   WalletAnalysis
 } from '../types/bitcoin';
 
-const API_BASE = 'http://localhost:3001/api/bitcoin';
+const BASE_URL = import.meta.env.VITE_API_BASE_URL !== undefined
+  ? import.meta.env.VITE_API_BASE_URL
+  : (typeof window !== 'undefined' && window.location.port === '5173' ? 'http://localhost:3001' : '');
+const API_BASE = `${BASE_URL}/api/bitcoin`;
 
 interface BitcoinContextType {
   status: BitcoinStatus | null;
@@ -175,10 +178,8 @@ export const BitcoinProvider: React.FC<{ children: ReactNode }> = ({ children })
         setSelectedEntity(resEntities.data[0]);
       }
 
-      // Automatically hydrate primary investigation flow & graph
-      const primaryInvId = resInvs.data.find((inv: InvestigationSummary) => inv.investigation_id === 'INV-35C54D881B')?.investigation_id ||
-                           resInvs.data[0]?.investigation_id ||
-                           'INV-35C54D881B';
+      // Automatically hydrate primary investigation flow & graph from the latest real investigation
+      const primaryInvId = resInvs.data[0]?.investigation_id;
       if (primaryInvId) {
         fetchInvestigation(primaryInvId);
         fetchInvestigationFlow(primaryInvId);
@@ -195,27 +196,41 @@ export const BitcoinProvider: React.FC<{ children: ReactNode }> = ({ children })
   useEffect(() => {
     refreshAll();
 
-    // Socket.io real-time updates
+    // Socket.io real-time updates with deduplication
     const handleNewTx = (tx: BitcoinTransaction) => {
-      setTransactions(prev => [tx, ...prev.slice(0, 79)]);
+      setTransactions(prev => {
+        if (!tx || !tx.txid) return prev;
+        if (prev.some(t => t.txid === tx.txid)) return prev;
+        return [tx, ...prev.slice(0, 79)];
+      });
     };
 
     const handleNewBlock = (block: BitcoinBlock) => {
-      setBlocks(prev => [block, ...prev.slice(0, 19)]);
+      setBlocks(prev => {
+        if (!block) return prev;
+        if (prev.some(b => b.hash === block.hash || (b.height !== null && b.height === block.height))) return prev;
+        return [block, ...prev.slice(0, 19)];
+      });
     };
 
     const handleNewRisk = (lead: BitcoinRiskLead) => {
-      setRiskQueue(prev => [lead, ...prev]);
+      setRiskQueue(prev => {
+        if (!lead) return prev;
+        if (prev.some(l => (lead.txid && l.txid === lead.txid) || (lead.lead_id && l.lead_id === lead.lead_id))) return prev;
+        return [lead, ...prev];
+      });
     };
 
     socket.on('bitcoin:newTransaction', handleNewTx);
     socket.on('bitcoin:newBlock', handleNewBlock);
     socket.on('bitcoin:newRiskEvent', handleNewRisk);
+    socket.on('bitcoin:newAlert', handleNewRisk);
 
     return () => {
       socket.off('bitcoin:newTransaction', handleNewTx);
       socket.off('bitcoin:newBlock', handleNewBlock);
       socket.off('bitcoin:newRiskEvent', handleNewRisk);
+      socket.off('bitcoin:newAlert', handleNewRisk);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
