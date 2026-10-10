@@ -15,28 +15,54 @@ const SearchFilters: React.FC = () => {
     if (name === 'fraudOnly' || name === 'legitOnly') {
       // Handle checkboxes
       const checkboxInput = e.target as HTMLInputElement;
-      setFilters({ ...filters, [name]: checkboxInput.checked });
-    } else if (type === 'number' && value) {
-      // Handle number inputs
-      setFilters({ ...filters, [name]: parseFloat(value) });
+      setFilters(prev => ({ ...prev, [name]: checkboxInput.checked }));
+    } else if (name === 'merchantCategory' || name === 'deviceType') {
+      setFilters(prev => {
+        const newFilters = { ...prev };
+        if (value !== '') {
+          newFilters[name as 'merchantCategory' | 'deviceType'] = parseInt(value, 10);
+        } else {
+          delete newFilters[name as 'merchantCategory' | 'deviceType'];
+        }
+        return newFilters;
+      });
+    } else if (type === 'number') {
+      setFilters(prev => {
+        const newFilters = { ...prev };
+        if (value !== '') {
+          newFilters[name as 'minAmount' | 'maxAmount'] = parseFloat(value);
+        } else {
+          delete newFilters[name as 'minAmount' | 'maxAmount'];
+        }
+        return newFilters;
+      });
     } else if (value) {
       // Handle other inputs
-      setFilters({ ...filters, [name]: value });
+      setFilters(prev => ({ ...prev, [name]: value }));
     } else {
       // If value is empty, remove the field from filters
-      const newFilters = { ...filters };
-      delete newFilters[name as keyof TransactionFilters];
-      setFilters(newFilters);
+      setFilters(prev => {
+        const newFilters = { ...prev };
+        delete newFilters[name as keyof TransactionFilters];
+        return newFilters;
+      });
     }
   };
   
+  const [searchStatus, setSearchStatus] = useState<string | null>(null);
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     searchTransactions(filters);
+    setSearchStatus('Search filters applied');
+    setTimeout(() => {
+      document.getElementById('transaction-table')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 150);
   };
   
   const handleClear = () => {
     setFilters({});
+    setSearchStatus(null);
     clearFilters();
   };
   
@@ -180,22 +206,32 @@ const SearchFilters: React.FC = () => {
             </div>
           </div>
           
-          <div className="mt-6 flex items-center justify-end space-x-3">
-            <button
-              type="button"
-              onClick={handleClear}
-              className="px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
-            >
-              <X className="w-4 h-4 inline mr-1" />
-              Clear
-            </button>
-            <button
-              type="submit"
-              className="px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-primary-600 hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
-            >
-              <Search className="w-4 h-4 inline mr-1" />
-              Search
-            </button>
+          <div className="mt-6 flex items-center justify-between">
+            <div className="text-xs text-gray-500 font-medium">
+              {searchStatus && (
+                <span className="text-primary-600 font-semibold flex items-center">
+                  <span className="w-2 h-2 bg-primary-500 rounded-full mr-1.5 animate-pulse"></span>
+                  Filters applied — results updated below
+                </span>
+              )}
+            </div>
+            <div className="flex items-center space-x-3">
+              <button
+                type="button"
+                onClick={handleClear}
+                className="px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
+              >
+                <X className="w-4 h-4 inline mr-1" />
+                Clear
+              </button>
+              <button
+                type="submit"
+                className="px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-primary-600 hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
+              >
+                <Search className="w-4 h-4 inline mr-1" />
+                Search
+              </button>
+            </div>
           </div>
         </form>
       </motion.div>

@@ -1,9 +1,38 @@
+# Python
 /venv
-/Backend/cluster_models/
-
-# Node.js dependencies
-node_modules/
-
-# Python cache folders
+*.pyc
+*.pyo
 __pycache__/
 **/__pycache__/
+.pytest_cache/
+**/.pytest_cache/
+
+# Node.js
+node_modules/
+
+# Secrets — never commit
+.env
+.env.local
+.env.*.local
+!.env.example
+!Frontend/.env.example
+
+# Build artifacts
+Frontend/dist/
+Frontend/dist-ssr/
+Frontend/tsconfig.app.tsbuildinfo
+Frontend/tsconfig.node.tsbuildinfo
+
+# Backend data/model artifacts tracked separately
+/Backend/cluster_models/
+
+# IDE / OS
+.vscode/
+.idea/
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+Thumbs.db

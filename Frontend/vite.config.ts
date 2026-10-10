@@ -7,8 +7,7 @@ export default defineConfig({
     exclude: ['lucide-react'],
   },
   server: {
-    host: true, // allow external access (important!)
+    host: true,
     port: 5173,
-    allowedHosts: ['dashboard.080405.tech'], // add your custom domain
   },
 });

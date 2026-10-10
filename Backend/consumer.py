@@ -35,10 +35,16 @@ last_ids = {
     "custom_input_stream": '0-0'
 }
 
+import json
 # ========== Trigger & Cluster Load ==========
-print("🔁 Triggering cluster re-training for logging...")
-user_cluster_map = generate_user_cluster_hashmap()
-print(f"✅ Cluster mapping loaded for {len(user_cluster_map)} users.")
+if os.path.exists("user_cluster_mapping.json"):
+    with open("user_cluster_mapping.json", "r") as f:
+        user_cluster_map = json.load(f)
+    print(f"✅ Fast-loaded cluster mapping for {len(user_cluster_map)} users from user_cluster_mapping.json")
+else:
+    print("🔁 Triggering cluster re-training for logging...")
+    user_cluster_map = generate_user_cluster_hashmap()
+    print(f"✅ Cluster mapping loaded for {len(user_cluster_map)} users.")
 
 # ========== Fallback Model ==========
 try:

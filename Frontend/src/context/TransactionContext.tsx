@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import axios from 'axios';
 import { socket } from '../socket';
+import { API_ORIGIN } from '../config/api';
 import { 
   Transaction, 
   TransactionStats, 
@@ -10,7 +11,7 @@ import {
   DEVICE_TYPES 
 } from '../types';
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3001';
+const API_BASE_URL = API_ORIGIN;
 
 interface TransactionContextType {
   transactions: Transaction[];
@@ -279,56 +280,100 @@ export const TransactionProvider: React.FC<{ children: ReactNode }> = ({ childre
     
     // Filter the transactions based on search criteria
     const filteredTransactions = allTransactions.filter(tx => {
-      // User ID filter
-      if (searchFilters.userId && !tx.User_ID.includes(searchFilters.userId)) {
-        return false;
+      // User ID filter (case-insensitive substring)
+      if (searchFilters.userId && searchFilters.userId.trim() !== '') {
+        const queryUser = searchFilters.userId.trim().toLowerCase();
+        const txUser = (tx.User_ID || '').toLowerCase();
+        if (!txUser.includes(queryUser)) {
+          return false;
+        }
       }
       
       // Amount range filter
-      if (searchFilters.minAmount !== undefined && tx.Amount < searchFilters.minAmount) {
-        return false;
+      if (searchFilters.minAmount !== undefined && !isNaN(searchFilters.minAmount)) {
+        if (Number(tx.Amount) < Number(searchFilters.minAmount)) {
+          return false;
+        }
       }
-      if (searchFilters.maxAmount !== undefined && tx.Amount > searchFilters.maxAmount) {
-        return false;
+      if (searchFilters.maxAmount !== undefined && !isNaN(searchFilters.maxAmount)) {
+        if (Number(tx.Amount) > Number(searchFilters.maxAmount)) {
+          return false;
+        }
       }
       
       // Merchant category filter
-      if (searchFilters.merchantCategory !== undefined) {
-        const txCategory = typeof tx.Merchant_Category === 'number' 
-          ? tx.Merchant_Category 
-          : Object.keys(MERCHANT_CATEGORIES).find(
-              key => MERCHANT_CATEGORIES[Number(key)] === tx.Merchant_Category
-            );
-        if (Number(txCategory) !== searchFilters.merchantCategory) {
+      if (
+        searchFilters.merchantCategory !== undefined && 
+        searchFilters.merchantCategory !== null && 
+        String(searchFilters.merchantCategory) !== ''
+      ) {
+        const targetCategoryCode = Number(searchFilters.merchantCategory);
+        let txCatCode: number | undefined;
+        if (typeof tx.Merchant_Category === 'number') {
+          txCatCode = tx.Merchant_Category;
+        } else if (typeof tx.Merchant_Category === 'string') {
+          const foundKey = Object.keys(MERCHANT_CATEGORIES).find(
+            key => MERCHANT_CATEGORIES[Number(key)]?.toLowerCase() === tx.Merchant_Category?.toString().toLowerCase()
+          );
+          if (foundKey !== undefined) {
+            txCatCode = Number(foundKey);
+          }
+        }
+        if (tx.Merchant_Type_Code !== undefined) {
+          txCatCode = Number(tx.Merchant_Type_Code);
+        }
+        if (txCatCode !== undefined && txCatCode !== targetCategoryCode) {
           return false;
         }
       }
       
       // Device type filter
-      if (searchFilters.deviceType !== undefined) {
-        const txDevice = typeof tx.Device_Type === 'number' 
-          ? tx.Device_Type 
-          : Object.keys(DEVICE_TYPES).find(
-              key => DEVICE_TYPES[Number(key)] === tx.Device_Type
-            );
-        if (Number(txDevice) !== searchFilters.deviceType) {
+      if (
+        searchFilters.deviceType !== undefined && 
+        searchFilters.deviceType !== null && 
+        String(searchFilters.deviceType) !== ''
+      ) {
+        const targetDevCode = Number(searchFilters.deviceType);
+        let txDevCode: number | undefined;
+        if (typeof tx.Device_Type === 'number') {
+          txDevCode = tx.Device_Type;
+        } else if (typeof tx.Device_Type === 'string') {
+          const foundKey = Object.keys(DEVICE_TYPES).find(
+            key => DEVICE_TYPES[Number(key)]?.toLowerCase() === tx.Device_Type?.toString().toLowerCase()
+          );
+          if (foundKey !== undefined) {
+            txDevCode = Number(foundKey);
+          }
+        }
+        if (tx.Device_Type_Code !== undefined) {
+          txDevCode = Number(tx.Device_Type_Code);
+        }
+        if (txDevCode !== undefined && txDevCode !== targetDevCode) {
           return false;
         }
       }
       
       // Date range filter
-      if (searchFilters.startDate && tx.Date < searchFilters.startDate) {
-        return false;
+      const txDateStr = tx.Date ? tx.Date.split(' ')[0] : '';
+      if (searchFilters.startDate && txDateStr) {
+        if (txDateStr < searchFilters.startDate) {
+          return false;
+        }
       }
-      if (searchFilters.endDate && tx.Date > searchFilters.endDate) {
-        return false;
+      if (searchFilters.endDate && txDateStr) {
+        if (txDateStr > searchFilters.endDate) {
+          return false;
+        }
       }
       
       // Fraud or legit filter
-      if (searchFilters.fraudOnly && (!tx.fraud_score || tx.fraud_score <= 0.7)) {
+      const isFraud = Boolean((tx.fraud_score !== undefined && tx.fraud_score > 0.5) || tx.fraud_token !== undefined);
+      const isLegit = Boolean(tx.legit_token || (tx.fraud_score !== undefined && tx.fraud_score <= 0.5));
+      
+      if (searchFilters.fraudOnly && !isFraud) {
         return false;
       }
-      if (searchFilters.legitOnly && !tx.legit_token) {
+      if (searchFilters.legitOnly && !isLegit) {
         return false;
       }
       

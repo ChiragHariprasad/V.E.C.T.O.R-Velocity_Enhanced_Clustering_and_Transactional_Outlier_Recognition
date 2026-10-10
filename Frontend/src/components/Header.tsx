@@ -1,55 +1,124 @@
 import React from 'react';
-import { AlertTriangle, BarChart2, Activity } from 'lucide-react';
-import { useTransactions } from '../context/TransactionContext';
+import { 
+  Activity, 
+  Coins, 
+  CreditCard, 
+  Search
+} from 'lucide-react';
+import ThemeToggle from './ThemeToggle';
+import SearchOverlay from './SearchOverlay';
 
 interface HeaderProps {
   isConnected: boolean;
+  activeDomain: 'financial' | 'bitcoin';
+  onDomainChange: (domain: 'financial' | 'bitcoin') => void;
+  searchQuery?: string;
+  onSearchChange?: (q: string) => void;
 }
 
-const Header: React.FC<HeaderProps> = ({ isConnected }) => {
-  const { stats } = useTransactions();
+const Header: React.FC<HeaderProps> = ({ 
+  isConnected, 
+  activeDomain, 
+  onDomainChange
+}) => {
+  const [isSearchOpen, setIsSearchOpen] = React.useState(false);
+
+  // Keyboard shortcut (cmd+k or ctrl+k)
+  React.useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+        e.preventDefault();
+        setIsSearchOpen(true);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
 
   return (
-    <header className="bg-white border-b border-gray-100 shadow-sm sticky top-0 z-10">
-      <div className="container mx-auto px-4 py-3">
-        <div className="flex flex-col sm:flex-row justify-between items-center space-y-3 sm:space-y-0">
-          <div className="flex items-center">
-            <div className="flex items-center mr-2">
-              <Activity className="h-6 w-6 sm:h-7 sm:w-7 text-primary-600 mr-2" />
-              <h1 className="text-xl sm:text-2xl font-bold text-primary-800">V.E.C.T.O.R</h1>
+    <header className="bg-[var(--bg-surface)]/95 backdrop-blur-md border-b border-[var(--border-subtle)] sticky top-0 z-40 px-5 py-2.5 transition-colors duration-300">
+      <div className="flex items-center justify-between gap-4">
+        {/* Left: V.E.C.T.O.R Logo & SIH Badge */}
+        <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2.5">
+            {/* Logo Icon with golden pulse */}
+            <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-amber-500/20 via-[var(--bg-elevated)] to-[var(--bg-surface)] border border-amber-500/40 flex items-center justify-center text-amber-500 shadow-md shadow-amber-500/10">
+              <Activity className="h-5 w-5 text-amber-500 stroke-[2.5]" />
             </div>
-            <span className="hidden sm:inline text-sm font-medium text-gray-500">Velocity-Enhanced Clustering for 
-Transactional Outlier Recognition</span>
-          </div>
-          
-          <div className="flex flex-wrap items-center justify-center gap-2 sm:gap-4">
-            <div className="flex items-center">
-              <BarChart2 className="h-4 w-4 sm:h-5 sm:w-5 text-secondary-500 mr-1" />
-              <span className="text-xs sm:text-sm font-medium">
-                <span className="text-gray-600">Today: </span>
-                <span className="text-gray-900">{stats.totalTransactions} Transactions</span>
-              </span>
-            </div>
-            
-            <div className="flex items-center">
-              <AlertTriangle className="h-4 w-4 sm:h-5 sm:w-5 text-danger-500 mr-1" />
-              <span className="text-xs sm:text-sm font-medium">
-                <span className="text-gray-600">Fraud Rate: </span>
-                <span className={`${stats.fraudPercentage > 5 ? 'text-danger-600' : 'text-gray-900'}`}>
-                  {stats.fraudPercentage}%
+
+            <div>
+              <div className="flex items-center gap-2">
+                <h1 className="text-lg font-black tracking-wider text-[var(--text-primary)]">V . E . C . T . O . R</h1>
+                <span className="text-[10px] font-bold uppercase tracking-wider bg-amber-500/15 border border-amber-500/40 text-amber-500 px-2 py-0.5 rounded-md">
+                  SIH26146
                 </span>
-              </span>
+              </div>
+              <p className="hidden md:block text-[10px] text-[var(--text-muted)] font-medium tracking-tight">
+                Velocity-Enhanced Clustering for Transactional Outlier Recognition
+              </p>
             </div>
-            
-            <div 
-              className={`flex items-center px-2 sm:px-3 py-1 rounded-full text-xs font-medium ${
-                isConnected ? 'bg-success-100 text-success-800' : 'bg-danger-100 text-danger-800'
+          </div>
+
+          {/* Domain Switcher Pills */}
+          <div className="flex items-center bg-[var(--bg-elevated)] p-1 rounded-xl border border-[var(--border-subtle)] ml-4">
+            <button
+              onClick={() => onDomainChange('bitcoin')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                activeDomain === 'bitcoin'
+                  ? 'bg-gradient-to-r from-amber-500 to-amber-600 text-white shadow-md shadow-amber-500/25'
+                  : 'text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-surface)]'
               }`}
             >
-              <span className={`inline-block w-1.5 sm:w-2 h-1.5 sm:h-2 rounded-full mr-1 sm:mr-1.5 ${
-                isConnected ? 'bg-success-500 animate-pulse' : 'bg-danger-500'
-              }`}></span>
-              {isConnected ? 'Live' : 'Disconnected'}
+              <Coins className="w-3.5 h-3.5" />
+              Bitcoin Intelligence
+            </button>
+            <button
+              onClick={() => onDomainChange('financial')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                activeDomain === 'financial'
+                  ? 'bg-gradient-to-r from-primary-600 to-blue-600 text-white shadow-md shadow-blue-500/25'
+                  : 'text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-surface)]'
+              }`}
+            >
+              <CreditCard className="w-3.5 h-3.5" />
+              Financial Monitoring
+            </button>
+          </div>
+        </div>
+
+        {/* Right Controls: Search, Notifications, Analyst Profile */}
+        <div className="flex items-center gap-3.5">
+          {/* Search Bar */}
+          <div className="relative hidden lg:block w-72">
+            <Search className="w-4 h-4 text-[var(--text-muted)] absolute left-3 top-1/2 -translate-y-1/2" />
+            <button
+              onClick={() => setIsSearchOpen(true)}
+              className="w-full bg-[var(--bg-elevated)] border border-[var(--border-subtle)] hover:border-[var(--accent-primary)]/40 rounded-xl pl-9 pr-3 py-1.5 text-xs text-left text-[var(--text-muted)] outline-none transition-all flex items-center justify-between group"
+            >
+              <span>Search intelligence...</span>
+              <div className="flex items-center gap-1 opacity-70 group-hover:opacity-100">
+                <span className="px-1 py-0.5 rounded border border-[var(--border-subtle)] text-[9px] font-mono">⌘</span>
+                <span className="px-1 py-0.5 rounded border border-[var(--border-subtle)] text-[9px] font-mono">K</span>
+              </div>
+            </button>
+          </div>
+
+          <SearchOverlay isOpen={isSearchOpen} onClose={() => setIsSearchOpen(false)} />
+
+          <ThemeToggle />
+
+
+          {/* Analyst Profile Avatar */}
+          <div className="flex items-center gap-2.5 pl-2 border-l border-[var(--border-subtle)]">
+            <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-indigo-500 to-primary-600 flex items-center justify-center text-white font-bold text-xs shadow-sm">
+              VN
+            </div>
+            <div className="hidden sm:block text-left">
+              <div className="text-xs font-semibold text-[var(--text-primary)] leading-tight">Analyst Vinith</div>
+              <div className={`text-[10px] ${isConnected ? 'text-emerald-500' : 'text-rose-500'} font-medium flex items-center gap-1`}>
+                <span className={`w-1.5 h-1.5 rounded-full ${isConnected ? 'bg-emerald-500' : 'bg-rose-500'} animate-pulse`}></span>
+                {isConnected ? 'Online' : 'Offline'}
+              </div>
             </div>
           </div>
         </div>

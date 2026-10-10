@@ -1,0 +1,8 @@
+{
+    "model_version": "bitcoin_v1",
+    "feature_schema_version": "bitcoin_features_v1",
+    "features_count": 66,
+    "training_samples": 1500,
+    "clusters_discovered": 3,
+    "status": "ready"
+}

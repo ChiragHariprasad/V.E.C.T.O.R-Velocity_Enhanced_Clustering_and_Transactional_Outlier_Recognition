@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { format } from 'date-fns';
 import { 
   Activity, 
@@ -123,7 +123,7 @@ const Dashboard: React.FC = () => {
         />
       </div>
       
-      <div className="mb-6">
+      <div id="transaction-table" className="mb-6 scroll-mt-6">
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-xl font-bold text-gray-900 flex items-center">
             <Clock className="h-5 w-5 mr-2 text-primary-500" />

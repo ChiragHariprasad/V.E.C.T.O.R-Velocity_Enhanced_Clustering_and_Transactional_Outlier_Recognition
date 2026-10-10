@@ -1,0 +1,52 @@
+version: '3.8'
+
+services:
+  mongodb:
+    image: mongo:7.0
+    container_name: vector_mongodb
+    restart: unless-stopped
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongodb_data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping').ok"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - vector-net
+
+  vector-app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: vector_app
+    restart: unless-stopped
+    env_file:
+      - .env
+    ports:
+      - "3001:3001"
+    environment:
+      - PORT=3001
+      - MONGO_URI=mongodb://mongodb:27017
+      - MONGO_DB_NAME=RedisTransactions
+      - BITCOIN_SIMULATION_MODE=true
+      - BITCOIN_RPC_HOST=127.0.0.1
+      - BITCOIN_RPC_PORT=8332
+      - DEMO_READ_ONLY=true
+      - SEED_DEMO_DATA=true
+      - NODE_ENV=production
+    depends_on:
+      mongodb:
+        condition: service_healthy
+    networks:
+      - vector-net
+
+volumes:
+  mongodb_data:
+    driver: local
+
+networks:
+  vector-net:
+    driver: bridge
