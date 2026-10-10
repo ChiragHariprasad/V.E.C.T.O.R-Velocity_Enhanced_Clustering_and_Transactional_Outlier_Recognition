@@ -1,5 +1,7 @@
 # V.E.C.T.O.R — Hardcoded Data & Fallback Audit (Post-Remediation)
 
+> **Status: HISTORICAL — superseded.** The statements below were not valid for the current checkout as reviewed on 10 October 2026. In particular, fabricated UI fallbacks and unverified measurements still existed; see `GO_NO_GO.md` for current scope and fixes.
+
 > **Target Branch**: `update-branch`  
 > **Evaluation Date**: 2026-10-10  
 > **Scope**: Status of static placeholders, fallback data, and analytical calculations across Frontend and Backend.  

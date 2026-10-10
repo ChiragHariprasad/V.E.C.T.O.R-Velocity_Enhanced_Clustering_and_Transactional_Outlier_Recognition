@@ -1,5 +1,7 @@
 # V.E.C.T.O.R — E2E TEST RESULTS
 
+> **Status: HISTORICAL — superseded.** The environment and pass counts below describe an earlier run. They do not establish that this revision passed end-to-end checks; see `VALIDATION_RESULTS.md`.
+
 ---
 
 ## Test Environment

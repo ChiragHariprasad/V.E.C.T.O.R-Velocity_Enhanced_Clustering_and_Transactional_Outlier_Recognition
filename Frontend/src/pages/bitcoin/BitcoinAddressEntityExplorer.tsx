@@ -147,15 +147,15 @@ const BitcoinAddressEntityExplorer: React.FC<Props> = ({ onSelectTx, onOpenGraph
                 </div>
                 <div>
                   <span className="text-xs text-[var(--text-muted)] block">1H / 24H Velocity</span>
-                  <span className="text-sm font-mono font-bold text-[var(--accent-primary)]">{entity.velocity_1h || 0} / {entity.velocity_24h || ((entity.velocity_1h || 0) * 8)} tx</span>
+                  <span className="text-sm font-mono font-bold text-[var(--accent-primary)]">{entity.velocity_1h ?? '—'} / {entity.velocity_24h ?? '—'} tx</span>
                 </div>
                 <div>
                   <span className="text-xs text-[var(--text-muted)] block">Unique Counterparties</span>
-                  <span className="text-sm font-mono font-bold text-[var(--text-primary)]">{entity.unique_counterparties || entity.cross_entity_links || 0} peers</span>
+                  <span className="text-sm font-mono font-bold text-[var(--text-primary)]">{entity.unique_counterparties ?? entity.cross_entity_links ?? '—'} peers</span>
                 </div>
                 <div>
                   <span className="text-xs text-[var(--text-muted)] block">PageRank Centrality</span>
-                  <span className="text-sm font-mono font-bold text-[var(--network-cyan)]">{typeof entity.pagerank === 'number' ? entity.pagerank.toFixed(5) : '0.00182'}</span>
+                  <span className="text-sm font-mono font-bold text-[var(--network-cyan)]">{typeof entity.pagerank === 'number' ? entity.pagerank.toFixed(5) : '—'}</span>
                 </div>
               </div>
 

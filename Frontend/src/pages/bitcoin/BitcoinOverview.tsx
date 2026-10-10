@@ -47,6 +47,7 @@ const BitcoinOverview: React.FC<BitcoinOverviewProps> = ({ onOpenTab }) => {
     transactions, 
     riskQueue, 
     entities, 
+    clusters,
     investigations,
     activeInvestigation,
     investigationFlow,
@@ -73,12 +74,13 @@ const BitcoinOverview: React.FC<BitcoinOverviewProps> = ({ onOpenTab }) => {
   const medCount = riskQueue.filter(r => r.risk_level === 'MEDIUM').length;
   const lowCount = riskQueue.filter(r => r.risk_level === 'LOW').length;
   const totalLeads = criticalCount + highCount + medCount + lowCount;
+  const signalCount = (signal: string) => riskQueue.filter(lead => lead.signals?.includes(signal)).length;
 
   // Primary Investigation Hero Target
   const primaryInvestigation = activeInvestigation || investigations[0] || null;
-  const primaryEntityId = primaryInvestigation?.primary_entity || (riskQueue[0]?.entity_id || entities[0]?.entity_id || 'ENT_22E730C8B03C');
+  const primaryEntityId = primaryInvestigation?.primary_entity || riskQueue[0]?.entity_id || entities[0]?.entity_id || '';
   const primaryEntity = entities.find(e => e.entity_id === primaryEntityId) || entities[0] || null;
-  const primaryRiskScore = primaryInvestigation?.risk_score ?? (primaryEntity?.risk_score ?? 61.2);
+  const primaryRiskScore = primaryInvestigation?.risk_score ?? primaryEntity?.risk_score ?? null;
 
   // Dynamic Theme-Aware Chart Colors
   const chartGridColor = isLight ? 'rgba(0, 0, 0, 0.06)' : 'rgba(255, 255, 255, 0.05)';
@@ -117,15 +119,8 @@ const BitcoinOverview: React.FC<BitcoinOverviewProps> = ({ onOpenTab }) => {
   };
 
   // 2. Real-Time Transaction Volume History Chart
-  const sampleTimes = ['14:35', '14:40', '14:45', '14:50', '14:55'];
-  const sampleVolumeData = [1.2, 16.4, 2.8, 7.5, 3.2];
-  
-  const txTimes = transactions.length >= 5 
-    ? transactions.slice(0, 10).reverse().map(t => t.time ? t.time.slice(0, 5) : '12:00')
-    : sampleTimes;
-  const txVolumes = transactions.length >= 5
-    ? transactions.slice(0, 10).reverse().map(t => t.total_output_btc)
-    : sampleVolumeData;
+  const txTimes = transactions.slice(0, 10).reverse().map(t => t.time ? t.time.slice(0, 5) : '');
+  const txVolumes = transactions.slice(0, 10).reverse().map(t => t.total_output_btc || 0);
 
   const volumeHistoryData = {
     labels: txTimes,
@@ -183,10 +178,12 @@ const BitcoinOverview: React.FC<BitcoinOverviewProps> = ({ onOpenTab }) => {
 
   // Real Multi-Hop Flow Steps from Backend Investigation Engine
   const flowSteps = investigationFlow.slice(0, 3);
-  const totalFlowVolume = flowSteps.reduce((sum, s) => sum + (Number(s.amount) || Number((s as { amount_btc?: number }).amount_btc) || 0), 0);
-  const avgForwardingRatio = flowSteps.length > 0
-    ? (flowSteps.reduce((sum, s) => sum + (Number(s.forwarding_ratio) || 0), 0) / flowSteps.length) * 100
-    : 0;
+  const flowAmounts = flowSteps.map(s => Number(s.amount ?? (s as { amount_btc?: number }).amount_btc)).filter(Number.isFinite);
+  const totalFlowVolume = flowAmounts.length > 0 ? flowAmounts.reduce((sum, amount) => sum + amount, 0) : null;
+  const forwardingRatios = flowSteps.map(s => s.forwarding_ratio).filter((ratio): ratio is number => typeof ratio === 'number');
+  const avgForwardingRatio = forwardingRatios.length > 0
+    ? forwardingRatios.reduce((sum, ratio) => sum + ratio, 0) / forwardingRatios.length * 100
+    : null;
 
   return (
     <div className="space-y-6 pb-12">
@@ -226,7 +223,7 @@ const BitcoinOverview: React.FC<BitcoinOverviewProps> = ({ onOpenTab }) => {
             <div className="bg-[var(--bg-elevated)] p-4 rounded-xl border border-[var(--border-default)] text-center min-w-[130px]">
               <div className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wider mb-1">Composite Risk</div>
               <div className="text-3xl font-black font-mono text-[var(--risk-critical)]">
-                {primaryRiskScore.toFixed(1)}
+                {primaryRiskScore === null ? '—' : primaryRiskScore.toFixed(1)}
               </div>
               <div className="text-[10px] text-[var(--text-muted)] font-semibold mt-0.5">HIGH SEVERITY</div>
             </div>
@@ -237,7 +234,7 @@ const BitcoinOverview: React.FC<BitcoinOverviewProps> = ({ onOpenTab }) => {
                   if (primaryInvestigation) {
                     navigate(`/bitcoin/investigations/${primaryInvestigation.investigation_id}`);
                   } else {
-                    startInvestigation(primaryEntityId);
+                    if (primaryEntityId) startInvestigation(primaryEntityId);
                     navigate('/bitcoin/investigations');
                   }
                 }}
@@ -248,7 +245,8 @@ const BitcoinOverview: React.FC<BitcoinOverviewProps> = ({ onOpenTab }) => {
               </button>
               
               <button
-                onClick={() => navigate(`/bitcoin/wallet/${primaryEntityId}`)}
+                onClick={() => primaryEntityId && navigate(`/bitcoin/wallet/${primaryEntityId}`)}
+                disabled={!primaryEntityId}
                 className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-[var(--bg-elevated)] hover:bg-[var(--bg-surface)] border border-[var(--border-default)] text-[var(--text-primary)] font-semibold text-xs rounded-xl transition-all"
               >
                 <Eye className="w-3.5 h-3.5 text-[var(--accent-primary)]" />
@@ -282,21 +280,22 @@ const BitcoinOverview: React.FC<BitcoinOverviewProps> = ({ onOpenTab }) => {
               {/* Seed Node */}
               <div className="p-3 rounded-xl bg-[var(--risk-critical)]/15 border-2 border-[var(--risk-critical)] text-center shadow-lg animate-pulse">
                 <div className="text-[9px] uppercase font-bold text-[var(--risk-critical)]">Seed Entity</div>
-                <div className="font-mono text-xs font-bold text-[var(--text-primary)] mt-0.5">{primaryEntityId.slice(0, 10)}...</div>
-                <div className="text-[10px] text-[var(--risk-critical)] font-bold mt-1">Risk {primaryRiskScore.toFixed(0)}</div>
+                <div className="font-mono text-xs font-bold text-[var(--text-primary)] mt-0.5">{primaryEntityId ? `${primaryEntityId.slice(0, 10)}...` : 'No seed selected'}</div>
+                <div className="text-[10px] text-[var(--risk-critical)] font-bold mt-1">{primaryRiskScore === null ? 'Risk —' : `Risk ${primaryRiskScore.toFixed(0)}`}</div>
               </div>
 
               {/* Dynamic Hops from Backend Flow */}
               {flowSteps.length > 0 ? (
                 flowSteps.map((step, idx) => {
                   const hopColors = [
-                    { bg: 'bg-[var(--accent-primary)]/15', border: 'border-[var(--accent-primary)]', text: 'text-[var(--accent-primary)]', label: 'Hop 1 Layer' },
-                    { bg: 'bg-[var(--network-cyan)]/15', border: 'border-[var(--network-cyan)]', text: 'text-[var(--network-cyan)]', label: 'Hop 2 Fan-Out' },
-                    { bg: 'bg-[var(--behavior-purple)]/15', border: 'border-[var(--behavior-purple)]', text: 'text-[var(--behavior-purple)]', label: 'Hop 3 Exit' },
+                    { bg: 'bg-[var(--accent-primary)]/15', border: 'border-[var(--accent-primary)]', text: 'text-[var(--accent-primary)]' },
+                    { bg: 'bg-[var(--network-cyan)]/15', border: 'border-[var(--network-cyan)]', text: 'text-[var(--network-cyan)]' },
+                    { bg: 'bg-[var(--behavior-purple)]/15', border: 'border-[var(--behavior-purple)]', text: 'text-[var(--behavior-purple)]' },
                   ];
-                  const color = hopColors[idx] || hopColors[0];
-                  const entityId = step.destination_entity || ('to_entity' in step ? String(step.to_entity) : 'UNKNOWN');
-                  const amountVal = Number(step.amount) || ('amount_btc' in step ? Number(step.amount_btc) : 0);
+                  const color = hopColors[idx % hopColors.length];
+                  const entityId = step.destination_entity || ('to_entity' in step ? String(step.to_entity) : '—');
+                  const amountRaw = step.amount ?? ('amount_btc' in step ? step.amount_btc : null);
+                  const amountVal = typeof amountRaw === 'number' ? amountRaw : null;
 
                   return (
                     <React.Fragment key={idx}>
@@ -305,13 +304,13 @@ const BitcoinOverview: React.FC<BitcoinOverviewProps> = ({ onOpenTab }) => {
                       </div>
                       <div className={`p-3 rounded-xl ${color.bg} border ${color.border} text-center`}>
                         <div className={`text-[9px] uppercase font-bold ${color.text}`}>
-                          {step.hop ? `Hop ${step.hop}` : color.label}
+                          {step.hop ? `Hop ${step.hop}` : `Step ${idx + 1}`}
                         </div>
                         <div className="font-mono text-xs font-bold text-[var(--text-primary)] mt-0.5">
                           {entityId.length > 12 ? `${entityId.slice(0, 10)}...` : entityId}
                         </div>
                         <div className={`text-[10px] ${color.text} font-bold mt-1`}>
-                          ₿ {amountVal.toFixed(4)} BTC
+                          {amountVal === null ? 'Amount unavailable' : `₿ ${amountVal.toFixed(4)} BTC`}
                         </div>
                       </div>
                     </React.Fragment>
@@ -319,14 +318,14 @@ const BitcoinOverview: React.FC<BitcoinOverviewProps> = ({ onOpenTab }) => {
                 })
               ) : (
                 <div className="text-xs text-[var(--text-muted)] py-4 italic text-center w-full">
-                  Loading multi-hop transactional neighborhood flow from analytical engine...
+                  No investigation flow data is available.
                 </div>
               )}
             </div>
 
             <div className="flex justify-between items-center text-[10px] text-[var(--text-muted)] pt-2 border-t border-[var(--border-subtle)]">
-              <span>Forwarding Ratio: {avgForwardingRatio.toFixed(1)}% • Cumulative Volume: ₿ {totalFlowVolume.toFixed(4)} BTC</span>
-              <span className="text-[var(--accent-primary)] font-semibold">Graph Depth: {Math.max(1, flowSteps.length)} Hops Traced</span>
+              <span>Forwarding Ratio: {avgForwardingRatio === null ? '—' : `${avgForwardingRatio.toFixed(1)}%`} • Cumulative Volume: {totalFlowVolume === null ? '—' : `₿ ${totalFlowVolume.toFixed(4)} BTC`}</span>
+              <span className="text-[var(--accent-primary)] font-semibold">Graph Depth: {flowSteps.length} Hops Traced</span>
             </div>
           </div>
 
@@ -337,18 +336,8 @@ const BitcoinOverview: React.FC<BitcoinOverviewProps> = ({ onOpenTab }) => {
                 Active Behavioral Signatures
               </span>
               <div className="flex flex-wrap gap-2">
-                <span className="px-2.5 py-1 rounded-md text-xs font-semibold bg-[var(--risk-critical)]/15 text-[var(--risk-critical)] border border-[var(--risk-critical)]/30 flex items-center gap-1.5">
-                  <span className="w-1.5 h-1.5 rounded-full bg-[var(--risk-critical)] animate-ping" />
-                  Peel Chain Splitting
-                </span>
-                <span className="px-2.5 py-1 rounded-md text-xs font-semibold bg-amber-500/15 text-amber-500 border border-amber-500/30">
-                  Tor Exit Node Interaction
-                </span>
-                <span className="px-2.5 py-1 rounded-md text-xs font-semibold bg-purple-500/15 text-purple-400 border border-purple-500/30">
-                  High-Velocity Layering (21 tx/day)
-                </span>
-                <span className="px-2.5 py-1 rounded-md text-xs font-semibold bg-cyan-500/15 text-cyan-500 border border-cyan-500/30">
-                  Fan-Out Dispersion
+                <span className="px-2.5 py-1 rounded-md text-xs font-semibold bg-[var(--behavior-purple)]/15 text-[var(--behavior-purple)] border border-[var(--behavior-purple)]/30">
+                  {primaryEntity?.cluster_description || 'No behavioral classification reported'}
                 </span>
               </div>
             </div>
@@ -357,13 +346,13 @@ const BitcoinOverview: React.FC<BitcoinOverviewProps> = ({ onOpenTab }) => {
               <div className="bg-[var(--bg-elevated)] p-3 rounded-xl border border-[var(--border-default)]">
                 <span className="text-[10px] text-[var(--text-muted)] uppercase block">Known Addresses</span>
                 <span className="font-mono font-bold text-sm text-[var(--text-primary)]">
-                  {primaryEntity?.address_count || 8}
+                  {primaryEntity ? (primaryEntity.address_count ?? primaryEntity.addresses?.length ?? '—') : '—'}
                 </span>
               </div>
               <div className="bg-[var(--bg-elevated)] p-3 rounded-xl border border-[var(--border-default)]">
                 <span className="text-[10px] text-[var(--text-muted)] uppercase block">HDBSCAN Community</span>
                 <span className="font-mono font-bold text-sm text-[var(--accent-primary)]">
-                  Cluster #{primaryEntity?.cluster_id ?? 0}
+                  {primaryEntity ? `Cluster #${primaryEntity.cluster_id}` : 'Unassigned'}
                 </span>
               </div>
             </div>
@@ -509,7 +498,7 @@ const BitcoinOverview: React.FC<BitcoinOverviewProps> = ({ onOpenTab }) => {
             </h2>
             <p className="text-[11px] text-[var(--text-muted)]">Seed propagation tracing with forwarding ratio & retention</p>
           </div>
-          <span className="text-xs font-mono text-[var(--text-muted)]">3 Hops Tracked</span>
+          <span className="text-xs font-mono text-[var(--text-muted)]">{flowSteps.length} Hops Tracked</span>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -523,7 +512,7 @@ const BitcoinOverview: React.FC<BitcoinOverviewProps> = ({ onOpenTab }) => {
                   <GitFork className="w-3.5 h-3.5" /> Hop {step.hop}
                 </span>
                 <span className="text-[11px] font-mono font-bold text-emerald-500 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/30">
-                  {((step.forwarding_ratio || 0.85) * 100).toFixed(0)}% Forwarded
+                  {typeof step.forwarding_ratio === 'number' ? `${(step.forwarding_ratio * 100).toFixed(0)}% Forwarded` : 'Forwarding unavailable'}
                 </span>
               </div>
 
@@ -565,29 +554,29 @@ const BitcoinOverview: React.FC<BitcoinOverviewProps> = ({ onOpenTab }) => {
               <Activity className="w-4 h-4 text-[var(--accent-primary)]" />
               Pattern Detection Signatures
             </h3>
-            <span className="text-xs font-semibold text-[var(--text-muted)]">Real-Time Ingestion</span>
+              <span className="text-xs font-semibold text-[var(--text-muted)]">Loaded risk leads</span>
           </div>
 
           <div className="grid grid-cols-2 gap-3">
             <div className="p-3 bg-[var(--bg-elevated)] rounded-xl border border-[var(--border-default)]">
               <span className="text-[10px] font-bold text-[var(--text-muted)] uppercase block">Peel Chains</span>
-              <span className="text-lg font-bold font-mono text-[var(--risk-critical)]">14 Detected</span>
+              <span className="text-lg font-bold font-mono text-[var(--risk-critical)]">{signalCount('peel_chain_pattern')}</span>
               <p className="text-[10px] text-[var(--text-muted)] mt-1">Asymmetric change extraction</p>
             </div>
             <div className="p-3 bg-[var(--bg-elevated)] rounded-xl border border-[var(--border-default)]">
               <span className="text-[10px] font-bold text-[var(--text-muted)] uppercase block">CoinJoin / Mixing</span>
-              <span className="text-lg font-bold font-mono text-purple-400">8 Detected</span>
+              <span className="text-lg font-bold font-mono text-purple-400">{signalCount('coinjoin_structure')}</span>
               <p className="text-[10px] text-[var(--text-muted)] mt-1">Equal output denomination pools</p>
             </div>
             <div className="p-3 bg-[var(--bg-elevated)] rounded-xl border border-[var(--border-default)]">
               <span className="text-[10px] font-bold text-[var(--text-muted)] uppercase block">Fan-Out Layering</span>
-              <span className="text-lg font-bold font-mono text-orange-400">23 Detected</span>
+              <span className="text-lg font-bold font-mono text-orange-400">{signalCount('fan_out_dispersion')}</span>
               <p className="text-[10px] text-[var(--text-muted)] mt-1">Multi-hop dispersal paths</p>
             </div>
             <div className="p-3 bg-[var(--bg-elevated)] rounded-xl border border-[var(--border-default)]">
               <span className="text-[10px] font-bold text-[var(--text-muted)] uppercase block">Tor Exit Nodes</span>
-              <span className="text-lg font-bold font-mono text-cyan-400">11 Detected</span>
-              <p className="text-[10px] text-[var(--text-muted)] mt-1">Darknet relay transactions</p>
+              <span className="text-lg font-bold font-mono text-cyan-400">{signalCount('tor_exit_node')}</span>
+              <p className="text-[10px] text-[var(--text-muted)] mt-1">Fixture or imported relay indicators</p>
             </div>
           </div>
         </div>
@@ -597,7 +586,7 @@ const BitcoinOverview: React.FC<BitcoinOverviewProps> = ({ onOpenTab }) => {
           <div className="flex items-center justify-between">
             <h3 className="text-sm font-bold text-[var(--text-primary)] flex items-center gap-2">
               <Layers className="w-4 h-4 text-[var(--behavior-purple)]" />
-              HDBSCAN Behavioral Community Archetypes
+              Persisted Behavioral Clusters
             </h3>
             <button 
               onClick={() => onOpenTab?.('clusters')}
@@ -608,27 +597,16 @@ const BitcoinOverview: React.FC<BitcoinOverviewProps> = ({ onOpenTab }) => {
           </div>
 
           <div className="space-y-2.5">
-            <div className="p-3 bg-[var(--bg-elevated)] rounded-xl border border-[var(--border-default)] flex items-center justify-between">
-              <div>
-                <span className="text-xs font-bold text-[var(--text-primary)]">Cluster #0: High-Velocity Mixers</span>
-                <p className="text-[11px] text-[var(--text-muted)]">Avg Vol: 0.026 BTC • Velocity: 14.0 tx/hr</p>
+            {clusters.slice(0, 3).map(cluster => (
+              <div key={cluster.cluster_id} className="p-3 bg-[var(--bg-elevated)] rounded-xl border border-[var(--border-default)] flex items-center justify-between gap-3">
+                <div>
+                  <span className="text-xs font-bold text-[var(--text-primary)]">{cluster.name || `Cluster #${cluster.cluster_id}`}</span>
+                  <p className="text-[11px] text-[var(--text-muted)]">{cluster.entity_count} entities · Avg. received {cluster.avg_volume_btc === null ? '—' : `${cluster.avg_volume_btc.toFixed(4)} BTC`} · {cluster.avg_velocity_1h === null ? '—' : `${cluster.avg_velocity_1h.toFixed(1)} tx/hr`}</p>
+                </div>
+                <span className="text-xs font-mono font-bold text-[var(--risk-critical)]">{cluster.anomaly_rate_pct === null ? '—' : `${cluster.anomaly_rate_pct.toFixed(1)}% high risk`}</span>
               </div>
-              <span className="text-xs font-mono font-bold text-[var(--risk-critical)]">14.2% Anomaly</span>
-            </div>
-            <div className="p-3 bg-[var(--bg-elevated)] rounded-xl border border-[var(--border-default)] flex items-center justify-between">
-              <div>
-                <span className="text-xs font-bold text-[var(--text-primary)]">Cluster #1: Institutional Settlement</span>
-                <p className="text-[11px] text-[var(--text-muted)]">Avg Vol: 3.450 BTC • Velocity: 2.1 tx/hr</p>
-              </div>
-              <span className="text-xs font-mono font-bold text-amber-500">6.8% Anomaly</span>
-            </div>
-            <div className="p-3 bg-[var(--bg-elevated)] rounded-xl border border-[var(--border-default)] flex items-center justify-between">
-              <div>
-                <span className="text-xs font-bold text-[var(--text-primary)]">Cluster #2: Retail Aggregators</span>
-                <p className="text-[11px] text-[var(--text-muted)]">Avg Vol: 0.120 BTC • Velocity: 0.8 tx/hr</p>
-              </div>
-              <span className="text-xs font-mono font-bold text-emerald-500">2.1% Anomaly</span>
-            </div>
+            ))}
+            {clusters.length === 0 && <p className="text-xs text-[var(--text-muted)]">No persisted cluster results are available.</p>}
           </div>
         </div>
       </div>
@@ -722,6 +700,8 @@ const BitcoinOverview: React.FC<BitcoinOverviewProps> = ({ onOpenTab }) => {
           <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-[var(--bg-elevated)] border border-[var(--border-subtle)] text-[var(--text-muted)]">
             MEASURED TELEMETRY
           </span>
+          {status?.dataset_mode === 'SIMULATION' && <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-amber-500/15 text-amber-500">SIMULATED FIXTURES</span>}
+          {status?.dataset_mode === 'MIXED' && <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-amber-500/15 text-amber-500">MIXED SOURCES</span>}
         </div>
 
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-xs">

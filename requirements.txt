@@ -1,7 +1,7 @@
 # Core ML/data stack
 numpy>=1.24.0
 pandas>=2.1.0
-scikit-learn>=1.3.0
+scikit-learn==1.7.1
 xgboost>=2.0.0
 joblib>=1.3.0
 umap-learn>=0.5.4
@@ -10,6 +10,7 @@ hdbscan
 
 # Graph analysis
 networkx>=3.0
+pytest>=8.0
 
 # Data stores and streaming
 redis>=5.0.0

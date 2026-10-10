@@ -1,5 +1,7 @@
 # V.E.C.T.O.R — API TEST RESULTS (v2)
 
+> **Status: HISTORICAL — superseded.** The endpoint results below predate the current checkout and are not current verification. Re-run against the revision named in `VALIDATION_RESULTS.md` before relying on them.
+
 > **Test Date**: 2026-09-18/19
 > **Method**: All endpoints tested via Python urllib against live backend at http://localhost:3001
 

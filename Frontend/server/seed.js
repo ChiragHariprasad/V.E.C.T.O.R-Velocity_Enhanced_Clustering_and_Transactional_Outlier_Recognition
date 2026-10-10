@@ -8,8 +8,8 @@ import { fileURLToPath } from 'url';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const mongoURL = 'mongodb://localhost:27017';
-const dbName = 'RedisTransactions';
+const mongoURL = process.env.MONGO_URI || process.env.MONGODB_URI || 'mongodb://127.0.0.1:27017';
+const dbName = process.env.MONGO_DB_NAME || 'RedisTransactions';
 
 async function parseCSV(filePath, limit = 2000) {
   if (!fs.existsSync(filePath)) return [];
@@ -150,12 +150,16 @@ export async function seedDatabase(force = false) {
   }
 
   if (legitDocs.length > 0) {
-    await legitCollection.insertMany(legitDocs);
+    await legitCollection.insertMany(legitDocs.map(record => ({
+      ...record, data_mode: 'SIMULATION', data_source: 'financial seed fixture'
+    })));
     console.log(`✅ Seeded ${legitDocs.length} legitimate transactions.`);
   }
 
   if (fraudDocs.length > 0) {
-    await fraudCollection.insertMany(fraudDocs);
+    await fraudCollection.insertMany(fraudDocs.map(record => ({
+      ...record, data_mode: 'SIMULATION', data_source: 'financial seed fixture'
+    })));
     console.log(`✅ Seeded ${fraudDocs.length} fraud transactions.`);
   }
 

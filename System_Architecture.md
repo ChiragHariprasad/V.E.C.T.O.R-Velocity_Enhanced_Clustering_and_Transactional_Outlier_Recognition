@@ -1,371 +1,67 @@
 # V.E.C.T.O.R System Architecture
 
-**V.E.C.T.O.R** (Velocity-Enhanced Clustering for Transactional Outlier Recognition) is a dual-domain real-time monitoring and intelligence system. The original financial transaction pipeline detects anomalies in banking operations using event-driven processing and per-cluster ML models. The extended **V.E.C.T.O.R-BITCOIN** pipeline provides AI-powered analysis of Bitcoin transaction traffic for law-enforcement investigation workflows.
+**Revision:** 10 October 2026, `update-branch` (repository revision recorded in Git). This describes the code in this repository. It does not certify that external services or serialized models work in a particular deployment.
 
----
+## Product domains
 
-## 🎯 Aim
+V.E.C.T.O.R contains two related but distinct applications:
 
-To provide an accurate, real-time fraud detection and blockchain intelligence platform that dynamically profiles behavioral entities, micro-segments them into behavioral clusters, and leverages multi-layered anomaly detection to identify suspicious activity—without relying on static, rule-based systems.
+1. **Financial monitoring:** legacy Python producer/consumer scripts use Redis and MongoDB and are separate from the current Bitcoin REST workflow. The Mongo-backed financial dashboard also consumes seeded demo fixtures.
+2. **Bitcoin transaction intelligence:** the Express server provides the browser API and Socket.IO. MongoDB persists records. Python modules normalize bulk data and implement entity profiling, graph and UTXO analysis, behavioral features, model inference, risk evaluation, risk propagation and investigations. The frontend is a React/TypeScript SPA.
 
-## 🚀 Objectives
+The default Compose/demo configuration explicitly uses `BITCOIN_SIMULATION_MODE=true`. Seeded Bitcoin records are synthetic and carry `data_mode: SIMULATION`; a simulation status is not a connected Bitcoin Core node. The repository does not establish live block or mempool ingestion from Bitcoin Core.
 
-- **Real-Time Processing:** Ingest transactions through event-driven message brokers (Redis Streams) and process them with sub-second latency.
-- **Dynamic Feature Extraction:** Compute 50+ rolling behavioral features (velocity, graph centrality, UTXO age, temporal burst patterns) from historical data.
-- **Behavioral Micro-Segmentation:** Cluster entities via UMAP dimensionality reduction and HDBSCAN density-based clustering for per-group anomaly models.
-- **Multi-Model Risk Scoring:** Fuse six independent signal components (ML anomaly, graph centrality, velocity, temporal, UTXO, heuristic rules) into a calibrated 0–100 risk score.
-- **Automated Investigation Engine:** Automatically trigger graph-crawl investigations on high-risk entities, with follow-the-money flow analysis, role assignment, and ranked lead generation.
-- **Risk Propagation:** Spread risk from known-illicit seed entities through the transaction graph using Label Spreading with exponential decay.
-- **Explainability:** Generate signal-level decompositions and natural-language explanations for every risk assessment.
-- **Persistent Storage & Auditing:** Segregate and store transactions, entities, risk events, and investigations in MongoDB for long-term analytics and dashboard reporting.
-
----
-
-## 🛠️ Technologies Used
-
-### Backend Engine & Machine Learning
-- **Python 3.11+** — Core backend for data ingestion, ML pipelines, graph analytics, and investigation orchestration.
-- **Redis & Redis Streams** — Real-time message queue for transaction events and in-memory key-value store for rolling user/entity state.
-- **MongoDB 6.0+** — NoSQL persistence for transactions, entities, risk events, investigations, blocks, and IP correlations.
-- **scikit-learn** — Anomaly detection (`IsolationForest`), scaling (`StandardScaler`, `MinMaxScaler`).
-- **XGBoost** — Fallback gradient-boosted classifier for cold-start entities outside any cluster.
-- **UMAP & HDBSCAN** — Dimensionality reduction and density-based clustering for behavioral micro-segmentation.
-- **NetworkX** — Transaction graph construction, PageRank, betweenness centrality, and structural motif detection (with pure-Python fallback).
-- **Pandas & NumPy** — Data wrangling, feature engineering, and aggregation (Trimmed K-Means).
-
-### Frontend & API
-- **React 18 + TypeScript 5** — Modern SPA for the intelligence dashboard.
-- **Vite 5** — Fast development server and build tool.
-- **TailwindCSS 3** — Utility-first CSS framework.
-- **Chart.js + react-chartjs-2** — Data visualization (risk distributions, volume charts).
-- **Framer Motion** — Micro-animations and transitions.
-- **Lucide React** — Icon system.
-- **Express.js 4** — REST API server with 12+ Bitcoin endpoint groups.
-- **Socket.io 4** — Real-time WebSocket push for new transactions and risk events.
-
-### Infrastructure
-- **Linux (WSL Fedora 44)** — Fully offline deployment target.
-- **Streamlit** — User-facing secure banking portal for the financial transaction domain.
-
----
-
-## 🏗️ System Architecture Diagram
-
-```
-┌──────────────────────────────────────────────────────────────────────────┐
-│                          V.E.C.T.O.R SYSTEM                             │
-├──────────────────────────────────────────────────────────────────────────┤
-│                                                                          │
-│  ┌──────────────┐    ┌──────────────┐    ┌──────────────────────────┐   │
-│  │ Data Sources  │    │  Ingestion   │    │    Feature Engine        │   │
-│  │              │───►│  Engine      │───►│                          │   │
-│  │ CSV/JSON/XML │    │ bulk_ingest  │    │ 50+ behavioral features  │   │
-│  │ Bitcoin RPC  │    │ .py          │    │ across 9 groups          │   │
-│  │ Redis Stream │    │              │    │                          │   │
-│  └──────────────┘    └──────────────┘    └──────────┬───────────────┘   │
-│                                                      │                   │
-│  ┌──────────────┐    ┌──────────────┐    ┌──────────▼───────────────┐   │
-│  │ Transaction  │    │  Entity      │    │    ML Pipeline           │   │
-│  │ Graph        │◄──►│  Profiler    │    │                          │   │
-│  │ (NetworkX)   │    │ Common-Input │    │ UMAP → HDBSCAN →        │   │
-│  │              │    │ Heuristic    │    │ IsolationForest +        │   │
-│  │ PageRank,    │    │              │    │ XGBoost Fallback         │   │
-│  │ Betweenness  │    └──────────────┘    └──────────┬───────────────┘   │
-│  └──────┬───────┘                                   │                   │
-│         │            ┌──────────────┐    ┌──────────▼───────────────┐   │
-│         │            │  IP-Wallet   │    │    Risk Engine            │   │
-│         └───────────►│  Correlator  │───►│    6-Component Weighted   │   │
-│                      │  GeoIP, Tor  │    │    Composite Scoring +   │   │
-│                      │  Detection   │    │    Label Spreading        │   │
-│                      └──────────────┘    └──────────┬───────────────┘   │
-│                                                      │                   │
-│  ┌──────────────┐    ┌──────────────────┐  ┌────────▼───────────────┐   │
-│  │ MongoDB      │◄───│ Investigation    │◄─│    Alert Generator     │   │
-│  │ Persistence  │    │ Engine           │  │    Ranked + Explained  │   │
-│  └──────┬───────┘    │ Graph Crawl,     │  └────────────────────────┘   │
-│         │            │ Flow Analysis,   │                               │
-│         │            │ Lead Ranking     │                               │
-│         │            └──────────────────┘                               │
-│  ┌──────▼──────────────────────────────────────────────────────────┐    │
-│  │               React + TypeScript Dashboard                       │    │
-│  │  Overview ∙ Live Feed ∙ Transaction Explorer ∙ Entity Profiles  │    │
-│  │  Risk Queue ∙ Graph Explorer ∙ Behavioral Clusters              │    │
-│  │  Anomaly Timeline ∙ Investigation Manager ∙ Wallet Intelligence │    │
-│  └──────────────────────────────────────────────────────────────────┘    │
-└──────────────────────────────────────────────────────────────────────────┘
-```
-
----
-
-## 🏗️ Domain 1: Financial Transaction Monitoring
-
-### Data Flow (Sequence Diagram)
+## Bitcoin data path
 
 ```mermaid
-sequenceDiagram
-    autonumber
-    actor User
-    participant Streamlit (Producer)
-    participant Redis Streams
-    participant Redis Hash (User State)
-    participant Model (Consumer Engine)
-    participant MongoDB
-
-    User->>Streamlit (Producer): Authenticate & Initiate Transaction (Amount, Merchant, etc.)
-    Streamlit (Producer)->>Streamlit (Producer): Compute UI-based Session Time & Device Info
-    Streamlit (Producer)->>Redis Streams: Publish raw transaction JSON to `custom_input_stream`
-    
-    loop Real-Time Ingestion
-        Model (Consumer Engine)->>Redis Streams: Listen and Pull new transaction
-    end
-    
-    Model (Consumer Engine)->>Redis Hash (User State): Fetch historical stats (Avg Amount, Velocity)
-    Model (Consumer Engine)->>Model (Consumer Engine): Compute Dynamic Feature Vector
-    
-    alt Cluster Known
-        Model (Consumer Engine)->>Model (Consumer Engine): Load Cluster-specific `IsolationForest`
-    else Unknown / No Cluster
-        Model (Consumer Engine)->>Model (Consumer Engine): Load Global `XGBoost` Fallback Model
-    end
-    
-    Model (Consumer Engine)->>Model (Consumer Engine): Compute Fraud Score (0 to 1)
-    
-    alt Score > 0.8 (Fraud)
-        Model (Consumer Engine)->>MongoDB: Save to `fraud_transactions`
-    else 0.4 < Score <= 0.8 (Suspicious)
-        Model (Consumer Engine)->>Streamlit (Producer): Flag for 2FA Verification
-        Streamlit (Producer)->>User: Send Email Code & Prompt 2FA
-        alt 2FA Success
-            Streamlit (Producer)->>MongoDB: Save to `legit_transactions`
-        else 2FA Fail
-            Streamlit (Producer)->>MongoDB: Save to `fraud_transactions` (or cancel)
-        end
-    else Score <= 0.4 (Legit)
-        Model (Consumer Engine)->>Redis Hash (User State): Update rolling stats (Transaction_Count, Velocity)
-        Model (Consumer Engine)->>MongoDB: Save to `legit_transactions`
-    end
+flowchart LR
+  CSV[CSV / JSON / XML files] --> Parser[bulk_ingest parser and normalizer]
+  Parser --> Profiler[EntityProfiler]
+  Parser --> Graph[Transaction graph and UTXO state]
+  Profiler --> Features[BitcoinFeatureEngine]
+  Graph --> Features
+  Features --> ML[BitcoinMLInferenceEngine]
+  Features --> Rules[BitcoinRulesEngine]
+  ML --> Risk[BitcoinRiskEngine]
+  Rules --> Risk
+  Graph --> Propagation[RiskPropagationEngine]
+  Risk --> Persistence[MongoDB collections]
+  Propagation --> Persistence
+  Investigations[InvestigationEngine] --> Persistence
+  Persistence --> API[Express REST API]
+  API --> UI[React and TypeScript SPA]
+  Persistence --> Socket[Socket.IO change stream or polling fallback]
+  Socket --> UI
+  RPC[Bitcoin Core read-only status probe] -. optional .-> API
 ```
 
-### Core Components
+Bulk file ingestion (`python -m bitcoin.bulk_ingest`) runs the Python analytics pipeline and persists output to MongoDB unless `--no-persist` is supplied. Destructive clearing is opt-in through `--drop-existing`. The Express `POST /api/bitcoin/ingest` invokes the Python single-transaction analysis module; `/ingest/raw` stores records explicitly marked `RAW_UNANALYZED` and does not score them. Manual investigation requests invoke `bitcoin.run_investigation`; the GET investigation endpoints retrieve stored dossiers.
 
-1. **Trigger Engine (`trigger.py`)**
-   - **Role:** Offline / batch processing.
-   - **Mechanism:** Cleans historical CSVs using *Trimmed K-Means* to remove extreme outliers. It executes *UMAP* and *HDBSCAN* to form user clusters, then trains and exports an `IsolationForest` model for every cluster and an `XGBoost` global model. Saves the user-to-cluster mapping.
+### ML and risk semantics
 
-2. **Transaction Producer (`customproducer.py`)**
-   - **Role:** Data injection.
-   - **Mechanism:** A Streamlit UI simulating a real banking app. Handles login, session timing, and payload generation. Sends payloads immediately to `Redis Streams`. Includes a 2FA workflow relying on an SMTP server.
+The canonical feature list is `BITCOIN_FEATURE_KEYS` in `Backend/bitcoin/schemas.py` (66 features in this checkout). The feature engine creates named values from transaction, entity-history, UTXO and graph context. Inference validation arranges a dictionary in the canonical feature order, then applies the serialized scaler. If available and compatible, UMAP transforms the vector and HDBSCAN approximate prediction routes it to a cluster Isolation Forest. Cold-start and noise/unassigned cases use the XGBoost fallback. Isolation Forest decision values are inverted and normalized so the returned `ml_score` represents higher anomaly at higher values, bounded to `[0, 1]`. The score is an anomaly score, not a calibrated probability of illicit activity. The checked-in scikit-learn artifacts were serialized with version 1.7.1, so `requirements.txt` pins that version; the XGBoost pickle emits a compatibility warning when loaded with current XGBoost and should be migrated from its producing runtime before being treated as a stable production artifact.
 
-3. **Transaction Consumer Engine (`consumer.py`)**
-   - **Role:** Real-time inference.
-   - **Mechanism:** Subscribes to Redis Streams. Extracts dynamic features matching the model requirements, scales the vector, and infers the fraud probability. It writes outputs dynamically to MongoDB and maintains live user aggregation tables inside Redis Hashes.
+If artifacts cannot load or inference fails, the ML engine returns `ML_UNAVAILABLE` and `ml_score: null`. Presence of model files is not proof that the runtime loaded them or that they are validated against ground truth. The risk engine combines available ML, graph, velocity, temporal, UTXO and rule signals, with configured default weights in `Backend/bitcoin/config.py`; missing ML is not an ML prediction. Final risk is a 0–100 composite; `get_risk_level` uses `<25 LOW`, `25–<50 MEDIUM`, `50–<75 HIGH`, and `>=75 CRITICAL`. Propagated risk is a separate graph-derived signal and may contribute to the composite where the ingestion path explicitly adds it.
 
----
+The `is_illicit` source label is used as a seed label for graph propagation in the bulk pipeline; it is not an independent model input. Synthetic fixtures and seeded labels must not be treated as an unbiased evaluation set.
 
-## 🏗️ Domain 2: Bitcoin Transaction Intelligence
+## Persistence and interfaces
 
-### Pipeline Data Flow
+MongoDB database defaults to `RedisTransactions` and uses `MONGO_URI` / `MONGO_DB_NAME`. Bitcoin collections used by the code include `bitcoin_blocks`, `bitcoin_transactions`, `bitcoin_entities`, `bitcoin_clusters`, `bitcoin_risk_events`, `bitcoin_investigations`, `bitcoin_ip_correlations`, `bitcoin_system_telemetry`, `bitcoin_utxos`, `bitcoin_addresses`, `bitcoin_graph_edges`, and `bitcoin_features`. Collection creation is usage-driven; an unused configured collection may not exist.
 
-```mermaid
-sequenceDiagram
-    autonumber
-    participant DataSource as Data Source (CSV/JSON/XML)
-    participant BulkIngest as Bulk Ingest Engine
-    participant EntityProfiler as Entity Profiler
-    participant Graph as Transaction Graph
-    participant FeatureEngine as Feature Engine (50+)
-    participant Rules as Rules Engine
-    participant RiskEngine as 6-Component Risk Engine
-    participant IPCorrelator as IP-Wallet Correlator
-    participant RiskPropagation as Risk Propagation (Label Spreading)
-    participant InvestigationTrigger as Investigation Trigger
-    participant InvestigationEngine as Investigation Engine
-    participant MongoDB as MongoDB
+The Express API is implemented in `Frontend/server/index.js`. Domain routes include financial `/api/transactions` and `/api/transactions/stats`, plus Bitcoin `/api/bitcoin/*`. Routes return JSON; missing records generally return 404, invalid write payloads 400 (oversized batches 413), disabled writes 403, and server/runtime errors 500. Exact endpoint behavior should be read from the route implementation and `README.md` rather than inferred from old audit counts.
 
-    DataSource->>BulkIngest: Parse transactions (CSV/JSON/XML)
-    BulkIngest->>EntityProfiler: Common-input heuristic → Entity grouping
-    BulkIngest->>Graph: Build transaction graph (addresses → TXs → addresses)
-    BulkIngest->>FeatureEngine: Extract 50+ features across 9 groups
-    BulkIngest->>Rules: Pattern detection (Peel, CoinJoin, Fan-in/out, Rapid Forward)
-    BulkIngest->>RiskEngine: Compute 6-component weighted risk score
-    BulkIngest->>IPCorrelator: GeoIP, Tor detection, VPN detection, cross-entity links
-    BulkIngest->>RiskPropagation: Label Spreading from seed illicit entities (α=0.65)
-    BulkIngest->>MongoDB: Persist transactions, entities, risk events
-    
-    RiskPropagation->>InvestigationTrigger: Evaluate triggers (risk ≥ 70, multi-signal, propagated risk)
-    
-    alt Investigation Triggered
-        InvestigationTrigger->>InvestigationEngine: Create investigation
-        InvestigationEngine->>InvestigationEngine: Graph crawl (BFS, max depth 3)
-        InvestigationEngine->>InvestigationEngine: Flow analysis + Role assignment
-        InvestigationEngine->>InvestigationEngine: Pattern integration + Lead ranking
-        InvestigationEngine->>MongoDB: Persist investigation with graph, leads, evidence
-    end
-```
+Socket.IO emits financial `newTransaction` and Bitcoin `bitcoin:newTransaction`, `bitcoin:newRiskEvent`, `bitcoin:newAlert`, `bitcoin:investigationCreated` events. When MongoDB supports change streams the server uses them; standalone MongoDB uses a polling fallback configured by `TXN_POLL_MS` (default 2000 ms). Polling is not an exactly-once delivery guarantee.
 
-### Core Components
+## Deployment and operational boundaries
 
-1. **Bulk Ingestion Engine (`bulk_ingest.py`)**
-   - **Role:** Entry point for offline dataset processing.
-   - **Mechanism:** Parses CSV/JSON/XML datasets conforming to the NTRO schema. Orchestrates the full pipeline: Parse → Graph → Features → Rules → Risk → IP Correlation → Risk Propagation → Investigation Trigger → Persist.
+- Production frontend assets are served from `Frontend/dist` when present; `PORT` defaults to 3001.
+- `docker-compose.yml` provides MongoDB plus the app, with explicit simulation mode and read-only API operations.
+- Redis is used by financial scripts but is not a prerequisite for reading the Bitcoin seed-backed UI.
+- Mutating API routes default to blocked. Production write access requires `DEMO_READ_ONLY=false` and a bearer token in `API_WRITE_TOKEN`; bodies, transaction counts and request rate are bounded. The in-process rate limiter is not a production distributed gateway.
+- Real Bitcoin Core RPC is only probed for status when simulation mode is disabled. Wallet-send/sign methods are outside the permitted read-only RPC method set.
+- Free-hosting availability and provider-specific limits have not been verified. Public deployment requires a secured MongoDB, HTTPS, secrets management, a protected write path, external rate limiting and resource budgets.
 
-2. **Entity Profiler (`entity_profiler.py`)**
-   - **Role:** Address-to-entity resolution.
-   - **Mechanism:** Implements Common-Input-Ownership heuristic to group Bitcoin addresses into behavioral entities.
+## Legacy design material
 
-3. **Transaction Graph Engine (`transaction_graph.py`)**
-   - **Role:** Graph construction and analytics.
-   - **Mechanism:** Builds a directed graph (NetworkX or pure-Python fallback) of addresses → transactions → addresses. Computes PageRank, betweenness centrality, degree distribution, and detects structural motifs (peel chain, fan-in, fan-out, rapid forwarding).
-
-4. **Feature Engine (`bitcoin_features.py`)**
-   - **Role:** Feature extraction.
-   - **Mechanism:** Computes 50+ behavioral features across 9 groups (Transaction Structural, Script Type, UTXO Lifecycle, Entity Behavioral, Graph Centrality, Motif/Pattern, Temporal, Value Distribution, Network/IP).
-
-5. **Rules Engine (`bitcoin_rules.py`)**
-   - **Role:** Heuristic pattern detection.
-   - **Mechanism:** Detects peel chains, CoinJoin structures, fan-in/fan-out consolidation, rapid forwarding, dormant UTXO awakening, and Tor/VPN usage. Produces scored signals.
-
-6. **Multi-Model Risk Engine (`risk_engine.py`)**
-   - **Role:** Calibrated risk scoring with explainability.
-   - **Mechanism:** Fuses 6 independent components with configurable weights:
-     - ML Score (0.30) — Isolation Forest / XGBoost anomaly probability
-     - Graph Score (0.20) — PageRank + degree centrality
-     - Velocity Score (0.15) — Transaction rate deviation
-     - Temporal Score (0.10) — Burst frequency + sudden activity
-     - UTXO Score (0.10) — Dormant/young UTXO spending ratios
-     - Rule Score (0.15) — Heuristic pattern matches
-
-7. **IP-Wallet Correlator (`ip_correlator.py`)**
-   - **Role:** Network-layer to blockchain-layer bridge.
-   - **Mechanism:** Correlates relay IPs with wallet entities. Detects Tor exit nodes (prefix-based), VPN providers (ASN-based), computes geo-diversity, IP reuse counts, cross-entity IP links, burst scores, and composite anonymity scores.
-
-8. **Risk Propagation Engine (`risk_propagation.py`)**
-   - **Role:** Graph-based risk spreading.
-   - **Mechanism:** Seeds known-illicit entities with risk = 1.0 and propagates through the transaction graph: `risk(v) = max(risk(v), α × max(risk(neighbors)))` where α = 0.65. Converges when max_change < 0.001 or after 10 iterations.
-
-9. **Investigation Engine (`investigation_engine.py`)**
-   - **Role:** Automated follow-the-money investigation.
-   - **Mechanism:** Triggered when risk score ≥ 70, ≥ 3 multi-signal elevations, propagated risk ≥ 0.5, or ≥ 2 severe pattern combinations. Executes an 8-phase pipeline:
-     1. Seed analysis
-     2. Adaptive BFS graph crawl (max depth 3, max 100 entities)
-     3. Flow analysis with value tracking
-     4. Analytical role assignment (SOURCE, INTERMEDIARY, CONSOLIDATION, LAYERING, DISPERSAL, CONVERGENCE, EXIT_CANDIDATE)
-     5. Pattern integration
-     6. Risk propagation within investigation subgraph
-     7. Lead ranking with priority classification (P1–P4)
-     8. Evidence generation with natural-language explanations
-
-10. **Synthetic Dataset Generator (`generate_dataset.py`)**
-    - **Role:** Realistic test data production.
-    - **Mechanism:** Generates transactions embedding 6 pattern archetypes: Normal (55%), Peel Chain (12%), CoinJoin (10%), Fan-in (8%), Fan-out (8%), Rapid Forwarding (7%). Includes GeoIP data, 3 entity archetypes, and Tor exit node simulation.
-
-11. **ML Training Pipeline (`train.py`)**
-    - **Role:** Model training.
-    - **Mechanism:** StandardScaler → UMAP (n_components=8) → HDBSCAN → per-cluster Isolation Forest + global XGBoost fallback classifier.
-
----
-
-## 🖥️ Frontend Dashboard
-
-The React + TypeScript dashboard (`Frontend/`) provides 12 navigable views:
-
-| Tab | Component | Description |
-|-----|-----------|-------------|
-| **Overview** | `BitcoinOverview.tsx` | System status, risk distribution, volume charts, pattern breakdown |
-| **Live Feed** | `BitcoinLiveTransactions.tsx` | Real-time transaction stream via Socket.io |
-| **Transaction Explorer** | `BitcoinTransactionExplorer.tsx` | Detailed transaction inspection with UTXO inputs/outputs |
-| **Entity Profiles** | `BitcoinAddressEntityExplorer.tsx` | Entity browser with risk scores, cluster assignments, and address groupings |
-| **Risk Queue** | `BitcoinRiskQueue.tsx` | Prioritized queue of flagged risk events for analyst triage |
-| **Graph Explorer** | `BitcoinTransactionGraph.tsx` | Interactive transaction graph visualization |
-| **Behavioral Clusters** | `BitcoinBehavioralClusters.tsx` | HDBSCAN cluster visualization with per-cluster anomaly rates |
-| **Anomaly Timeline** | `BitcoinAnomalyTimeline.tsx` | Temporal view of anomalous activity |
-| **Investigations** | `BitcoinInvestigations.tsx` | Investigation lifecycle manager (create, list, review) |
-| **Investigation Detail** | `BitcoinInvestigationView.tsx` | Full investigation view with graph, flow path, leads, evidence, and role assignment |
-| **Wallet Intelligence** | `WalletIntelligence.tsx` | Deep-dive wallet analysis with animated progress and entity-level intelligence reports |
-| **Models / Sources / Settings** | Placeholder tabs | Reserved for model management, data source configuration, and system settings |
-
-### API Server (`Frontend/server/index.js`)
-
-Express.js REST API with 12 endpoint groups and Socket.io real-time push:
-
-| # | Route Group | Endpoints |
-|---|-------------|-----------|
-| 1 | Status & Overview | `GET /api/bitcoin/status` |
-| 2 | Blocks | `GET /api/bitcoin/blocks`, `GET /api/bitcoin/blocks/:height` |
-| 3 | Transactions | `GET /api/bitcoin/transactions`, `GET /api/bitcoin/transactions/:txid` |
-| 4 | Search | `GET /api/bitcoin/search` (multi-type: TX, entity, address, investigation) |
-| 5 | Entities | `GET /api/bitcoin/entities`, `GET /api/bitcoin/entity/:entity_id` |
-| 6 | Addresses | `GET /api/bitcoin/address/:address` |
-| 7 | Wallet Analysis | `POST /api/bitcoin/wallets/:address/analyze` |
-| 8 | Graph Explorer | `GET /api/bitcoin/graph/:node_id` |
-| 9 | Risk Queue | `GET /api/bitcoin/risk-queue` |
-| 10 | Clusters | `GET /api/bitcoin/clusters` |
-| 11 | Investigations | `GET/POST /api/bitcoin/investigations`, `GET .../investigations/:id`, `GET .../investigations/:id/graph`, `GET .../investigations/:id/flow`, `GET .../investigations/:id/leads` |
-| 12 | IP/Geo Analytics | `GET /api/bitcoin/geo-stats`, `GET /api/bitcoin/ip-correlations`, `GET /api/bitcoin/risk-propagation` |
-| 13 | Bulk Ingestion | `POST /api/bitcoin/ingest` |
-
----
-
-## ⚙️ Deployment
-
-The system is fully offline and deploys on WSL Fedora with two scripts:
-
-1. **`setup_fedora.sh`** — Installs MongoDB, Redis, Python 3.11+, Node.js 18+, creates virtual environment, installs all Python and Node dependencies.
-2. **`run.sh`** — 7-step automated launcher:
-   1. Activate Python venv
-   2. Start MongoDB
-   3. Start Redis
-   4. Generate synthetic Bitcoin dataset (5,000 transactions)
-   5. Run bulk ingestion pipeline (full AI/ML processing)
-   6. Train ML models (if not already trained)
-   7. Start Express.js backend (port 3001) + Vite frontend (port 5173)
-
-Access at `http://localhost:5173` after running `./run.sh`.
-
----
-
-## 📁 Project Structure
-
-```
-V.E.C.T.O.R/
-├── Backend/
-│   ├── bitcoin/                    # Bitcoin intelligence pipeline
-│   │   ├── bulk_ingest.py          # Full pipeline orchestrator (CSV/JSON/XML → MongoDB)
-│   │   ├── investigation_engine.py # Automated investigation + graph crawl + lead ranking
-│   │   ├── risk_engine.py          # 6-component multi-model risk scoring
-│   │   ├── risk_propagation.py     # Label Spreading with exponential decay
-│   │   ├── transaction_graph.py    # NetworkX graph + PageRank + motif detection
-│   │   ├── bitcoin_features.py     # 50+ feature extraction engine
-│   │   ├── bitcoin_rules.py        # Heuristic pattern detection
-│   │   ├── entity_profiler.py      # Common-input entity resolution
-│   │   ├── ip_correlator.py        # IP-wallet correlation + Tor/VPN detection
-│   │   ├── utxo_manager.py         # UTXO lifecycle tracking
-│   │   ├── generate_dataset.py     # Synthetic dataset generator
-│   │   ├── train.py                # ML model training pipeline
-│   │   ├── config.py               # Centralized configuration
-│   │   ├── schemas.py              # Feature keys and risk level helpers
-│   │   ├── rpc_client.py           # Bitcoin Core RPC client
-│   │   ├── block_processor.py      # Block-level processing
-│   │   └── models/                 # Trained model artifacts
-│   ├── consumer.py                 # Financial: real-time inference consumer
-│   ├── customproducer.py           # Financial: Streamlit banking portal
-│   ├── trigger.py                  # Financial: batch training (UMAP + HDBSCAN + IsolationForest)
-│   └── common_constants.py         # Shared constants
-├── Frontend/
-│   ├── server/
-│   │   ├── index.js                # Express.js API + Socket.io (12+ endpoint groups)
-│   │   ├── seed.js                 # Financial DB seeder
-│   │   └── seed_bitcoin.js         # Bitcoin DB seeder
-│   └── src/
-│       ├── App.tsx                 # Router with 15+ routes
-│       ├── pages/
-│       │   ├── Dashboard.tsx       # Financial monitoring dashboard
-│       │   └── bitcoin/            # 12 Bitcoin intelligence views
-│       ├── components/             # Shared UI components (9 components)
-│       ├── context/                # React context (Transaction, Bitcoin, Theme)
-│       └── types/                  # TypeScript type definitions
-├── AUDIT/                          # System audit reports and test results
-├── run.sh                          # One-command deployment launcher
-├── setup_fedora.sh                 # Dependency installer for WSL Fedora
-└── requirements.txt                # Python dependencies
-```
+Earlier architecture text in this repository described Redis Streams as the live Bitcoin transaction path, a Streamlit banking portal, automatic reclustering, a proprietary multi-signal system and production-ready operating characteristics. Those statements are design/history material and are not evidence that those workflows are wired into the current Express/Bitcoin UI. The older narrative remains in [TECHNICAL_WRITEUP.md](TECHNICAL_WRITEUP.md) only where called out as proposal/history; see [AUDIT/GO_NO_GO.md](AUDIT/GO_NO_GO.md) for current verification limits.

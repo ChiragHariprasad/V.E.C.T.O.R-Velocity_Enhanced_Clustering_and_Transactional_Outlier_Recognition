@@ -9,6 +9,7 @@ import { spawn, execFile } from 'child_process';
 import { fileURLToPath } from 'url';
 import { seedDatabase } from './seed.js';
 import { seedBitcoinDatabase } from './seed_bitcoin.js';
+import { createCorsOriginValidator, createWriteGuard, validateAnalyzedTransactions, validateRawTransactions, validateInvestigationBody } from './security.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -156,17 +157,21 @@ async function checkBitcoinCoreRpc(timeoutMs = 1500) {
 
 const app = express();
 const server = http.createServer(app);
-const allowedOrigin = process.env.CORS_ORIGIN || true;
+const allowedOrigins = (process.env.CORS_ORIGIN || 'http://localhost:5173,http://localhost:5174')
+  .split(',').map(origin => origin.trim()).filter(Boolean);
+const corsOrigin = createCorsOriginValidator(allowedOrigins);
 const io = new Server(server, {
   cors: {
-    origin: allowedOrigin,
+    origin: corsOrigin,
     methods: ['GET', 'POST']
   }
 });
 
 // Middleware
-app.use(cors({ origin: allowedOrigin }));
-app.use(express.json({ limit: '25mb' }));
+app.use(cors({ origin: corsOrigin }));
+app.use(express.json({ limit: process.env.JSON_BODY_LIMIT || '2mb' }));
+
+const rejectWriteUnlessAuthorized = createWriteGuard();
 
 // MongoDB connection
 const mongoURL = process.env.MONGO_URI || process.env.MONGODB_URI || 'mongodb://localhost:27017';
@@ -318,6 +323,7 @@ app.get('/api/bitcoin/status', async (req, res) => {
     const totalBlocks = await db.collection('bitcoin_blocks').countDocuments();
     const totalTxs = await db.collection('bitcoin_transactions').countDocuments();
     const totalEntities = await db.collection('bitcoin_entities').countDocuments();
+    const simulatedTransactions = await db.collection('bitcoin_transactions').countDocuments({ data_mode: 'SIMULATION' });
     const criticalLeads = await db.collection('bitcoin_risk_events').countDocuments({ risk_level: 'CRITICAL' });
     const highLeads = await db.collection('bitcoin_risk_events').countDocuments({ risk_level: 'HIGH' });
     
@@ -337,24 +343,28 @@ app.get('/api/bitcoin/status', async (req, res) => {
     if (!telemetry) {
       // Check if models exist on disk
       const modelsDir = path.resolve(process.cwd(), '../Backend/bitcoin/models');
-      const hasModels = fs.existsSync(path.join(modelsDir, 'bitcoin_scaler.joblib')) &&
-                        fs.existsSync(path.join(modelsDir, 'bitcoin_umap.joblib'));
+      const requiredArtifacts = [
+        'bitcoin_scaler.joblib', 'bitcoin_umap.joblib', 'bitcoin_hdbscan.joblib',
+        'bitcoin_fallback_xgboost.joblib', 'bitcoin_cluster_0_bundle.pkl',
+        'bitcoin_cluster_1_bundle.pkl', 'bitcoin_cluster_2_bundle.pkl'
+      ];
+      const artifactsPresent = requiredArtifacts.every(file => fs.existsSync(path.join(modelsDir, file)));
 
       telemetry = {
         model: {
-          status: hasModels ? 'OPERATIONAL' : 'MODEL_MISSING',
+          status: artifactsPresent ? 'ARTIFACTS_PRESENT_RUNTIME_UNVERIFIED' : 'MODEL_MISSING',
           name: 'V.E.C.T.O.R Multi-Model Behavioral Anomaly Detector',
           version: 'bitcoin_v1',
           loaded_at: null,
           features_count: 66,
-          clusters_loaded: hasModels ? [0, 1, 2] : [],
-          fallback_model: hasModels ? 'xgboost' : null
+          clusters_loaded: [],
+          fallback_model: artifactsPresent ? 'xgboost' : null
         },
         throughput: {
           status: 'idle',
           tx_per_sec: 0.0,
-          last_batch_tps: totalTxs > 0 ? 8.42 : null,
-          historical_avg_tps: totalTxs > 0 ? 8.42 : null,
+          last_batch_tps: null,
+          historical_avg_tps: null,
           processed_transactions: totalTxs,
           elapsed_seconds: null
         },
@@ -376,7 +386,11 @@ app.get('/api/bitcoin/status', async (req, res) => {
     res.json({
       network: nodeStatus.network,
       node_status: nodeStatus.status,
-      model_status: telemetry.model?.status || 'OPERATIONAL',
+      dataset_mode: simulatedTransactions > 0
+        ? (simulatedTransactions === totalTxs ? 'SIMULATION' : 'MIXED')
+        : (BITCOIN_SIMULATION_MODE ? 'SIMULATION' : 'IMPORTED_OR_LIVE_UNVERIFIED'),
+      simulated_transaction_count: simulatedTransactions,
+      model_status: telemetry.model?.status || 'MODEL_UNVERIFIED',
       node: nodeStatus.node,
       model: telemetry.model || {},
       throughput: telemetry.throughput || { status: 'idle', tx_per_sec: 0.0 },
@@ -465,7 +479,7 @@ app.get('/api/bitcoin/search', async (req, res) => {
           id: e.entity_id,
           label: e.entity_id,
           subLabel: `Cluster #${e.cluster_id ?? 0} • ${e.tx_count || 1} txs • ₿ ${e.total_volume_btc?.toFixed(2) || '0.00'}`,
-          risk: e.risk_level || 'LOW'
+          risk: e.risk_level || 'UNANALYZED'
         });
       }
     }
@@ -486,7 +500,7 @@ app.get('/api/bitcoin/search', async (req, res) => {
           id: matchedAddr,
           label: matchedAddr,
           subLabel: `Entity: ${e.entity_id} • ₿ ${e.total_volume_btc?.toFixed(2) || '0.00'}`,
-          risk: e.risk_level || 'LOW'
+          risk: e.risk_level || 'UNANALYZED'
         });
       }
     }
@@ -503,7 +517,7 @@ app.get('/api/bitcoin/search', async (req, res) => {
           id: t.txid,
           label: t.txid,
           subLabel: `Block #${t.block_height || 'mempool'} • ₿ ${t.total_output_btc?.toFixed(4)}`,
-          risk: t.risk_level || 'LOW'
+          risk: t.risk_level || 'UNANALYZED'
         });
       }
     }
@@ -594,39 +608,39 @@ const handleWalletAnalysis = async (req, res) => {
           entity_id: `ENT_COLD_START_${addr.slice(0, 8)}`,
           primary_address: addr,
           address_count: 1,
-          cluster_id: 0,
-          anonymity_score: 0.1,
-          first_seen: new Date().toISOString(),
-          last_seen: new Date().toISOString()
+          cluster_id: null,
+          anonymity_score: null,
+          first_seen: null,
+          last_seen: null
         },
         behavior: {
-          velocity_1h: 0.0,
-          velocity_24h: 0.0,
-          total_volume_btc: 0.0,
-          avg_tx_value: 0.0,
-          counterparty_diversity: 0
+          velocity_1h: null,
+          velocity_24h: null,
+          total_volume_btc: null,
+          avg_tx_value: null,
+          counterparty_diversity: null
         },
         cluster: {
-          cluster_id: 0,
+          cluster_id: null,
           name: 'Unclustered / Cold Start Wallet',
-          archetype: 'New / Dormant Address',
-          avg_volume_btc: 0.0,
-          anomaly_percentage: 0.0,
+          archetype: null,
+          avg_volume_btc: null,
+          anomaly_percentage: null,
           description: 'No prior transaction history found in database.'
         },
         risk: {
-          score: 0,
-          level: 'LOW',
+          score: null,
+          level: 'UNANALYZED',
           is_seed_illicit: false,
           propagated_risk: 0,
           components: {
-            ml_anomaly: 0,
-            graph_risk: 0,
-            velocity_signal: 0
+            ml_anomaly: null,
+            graph_risk: null,
+            velocity_signal: null
           }
         },
         transactions: [],
-        graph: { nodes: [{ id: addr, label: addr.slice(0, 8), type: 'address', risk_score: 0, risk_level: 'LOW' }], edges: [] },
+        graph: { nodes: [{ id: addr, label: addr.slice(0, 8), type: 'address', risk_score: null, risk_level: 'UNANALYZED' }], edges: [] },
         patterns: [],
         investigation: {
           active_case: false,
@@ -648,34 +662,25 @@ const handleWalletAnalysis = async (req, res) => {
     const timestamps = txs.map(t => t.timestamp || 0).filter(t => t > 0).sort((a, b) => a - b);
     const latestTs = timestamps.length > 0 ? timestamps[timestamps.length - 1] : 0;
     
-    let vel1h = entity.velocity_1h && entity.velocity_1h > 0 
-      ? entity.velocity_1h 
-      : (latestTs > 0 ? txs.filter(t => (latestTs - (t.timestamp || 0)) <= 3600).length : 1.0);
-    vel1h = Math.max(1.0, vel1h);
+    const vel1h = entity.velocity_1h ?? (latestTs > 0 ? txs.filter(t => (latestTs - (t.timestamp || 0)) <= 3600).length : null);
+    const vel24h = entity.velocity_24h ?? (latestTs > 0 ? txs.filter(t => (latestTs - (t.timestamp || 0)) <= 86400).length : null);
 
-    let vel24h = entity.velocity_24h && entity.velocity_24h > 0
-      ? entity.velocity_24h
-      : (latestTs > 0 ? txs.filter(t => (latestTs - (t.timestamp || 0)) <= 86400).length : vel1h);
-    vel24h = Math.max(vel1h, vel24h);
+    const totalVol = entity.total_volume_btc ?? (txs.length > 0
+      ? txs.reduce((acc, t) => acc + (t.total_output_btc || 0), 0)
+      : null);
 
-    const totalVol = entity.total_volume_btc && entity.total_volume_btc > 0
-      ? entity.total_volume_btc
-      : txs.reduce((acc, t) => acc + (t.total_output_btc || 0), 0);
-
-    const avgVal = entity.avg_tx_value && entity.avg_tx_value > 0
-      ? entity.avg_tx_value
-      : (totalVol / Math.max(1, txs.length));
+    const avgVal = entity.avg_tx_value ?? (txs.length > 0 ? totalVol / txs.length : null);
 
     // 4. Cluster Profile
-    const clusterId = entity.cluster_id ?? 0;
-    const clusterDoc = await db.collection('bitcoin_clusters').findOne({ cluster_id: clusterId });
+    const clusterId = entity.cluster_id ?? null;
+    const clusterDoc = clusterId === null ? null : await db.collection('bitcoin_clusters').findOne({ cluster_id: clusterId });
     const clusterProfile = {
       cluster_id: clusterId,
-      name: clusterDoc?.name || `Behavioral Cluster #${clusterId}`,
-      archetype: clusterDoc?.archetype || (clusterId === 0 ? 'High-Velocity Mixer' : clusterId === 1 ? 'Exchange Hub' : 'OTC / Layering Node'),
-      avg_volume_btc: clusterDoc?.avg_volume_btc || 24.5,
-      anomaly_percentage: clusterDoc?.anomaly_percentage || 14.2,
-      description: clusterDoc?.description || 'Entity clustered via multi-input heuristics and shared flow dynamics.'
+      name: clusterDoc?.name || null,
+      archetype: clusterDoc?.archetype || null,
+      avg_volume_btc: clusterDoc?.avg_volume_btc ?? null,
+      anomaly_percentage: clusterDoc?.anomaly_rate_pct ?? null,
+      description: clusterDoc?.description || null
     };
 
     // 5. Graph Context (1-hop neighborhood)
@@ -686,8 +691,8 @@ const handleWalletAnalysis = async (req, res) => {
       id: entity.entity_id,
       label: entity.entity_id,
       type: 'entity',
-      risk_score: entity.risk_score || 0,
-      risk_level: entity.risk_level || 'LOW'
+      risk_score: entity.risk_score ?? null,
+      risk_level: entity.risk_level || 'UNANALYZED'
     });
 
     for (const tx of txs.slice(0, 10)) {
@@ -695,8 +700,8 @@ const handleWalletAnalysis = async (req, res) => {
         id: tx.txid,
         label: `TX:${tx.txid.slice(0, 6)}...`,
         type: 'transaction',
-        risk_score: tx.risk_score || 0,
-        risk_level: tx.risk_level || 'LOW',
+        risk_score: tx.risk_score ?? null,
+        risk_level: tx.risk_level || 'UNANALYZED',
         value_btc: tx.total_output_btc
       });
 
@@ -713,8 +718,8 @@ const handleWalletAnalysis = async (req, res) => {
             id: out.address,
             label: `Addr:${out.address.slice(0, 6)}...`,
             type: 'address',
-            risk_score: tx.risk_score || 0,
-            risk_level: tx.risk_level || 'LOW'
+            risk_score: tx.risk_score ?? null,
+            risk_level: tx.risk_level || 'UNANALYZED'
           });
           graphEdges.push({
             source: tx.txid,
@@ -755,27 +760,27 @@ const handleWalletAnalysis = async (req, res) => {
         primary_address: entity.primary_address || addr,
         address_count: entity.addresses?.length || 1,
         cluster_id: clusterId,
-        anonymity_score: entity.anonymity_score || 0.15,
-        first_seen: entity.first_seen || (txs.length > 0 ? (txs[txs.length - 1].date || txs[txs.length - 1].time) : '2026-09-01'),
-        last_seen: entity.last_seen || (txs.length > 0 ? (txs[0].date || txs[0].time) : '2026-09-17')
+        anonymity_score: entity.anonymity_score ?? null,
+        first_seen: entity.first_seen ?? (txs.length > 0 ? txs[txs.length - 1].timestamp ?? null : null),
+        last_seen: entity.last_seen ?? (txs.length > 0 ? txs[0].timestamp ?? null : null)
       },
       behavior: {
-        velocity_1h: Math.round(vel1h * 100) / 100,
-        velocity_24h: Math.round(vel24h * 100) / 100,
-        total_volume_btc: Math.round(totalVol * 10000) / 10000,
-        avg_tx_value: Math.round(avgVal * 10000) / 10000,
-        counterparty_diversity: entity.unique_counterparties || Math.max(1, txs.length)
+        velocity_1h: vel1h === null ? null : Math.round(vel1h * 100) / 100,
+        velocity_24h: vel24h === null ? null : Math.round(vel24h * 100) / 100,
+        total_volume_btc: totalVol === null ? null : Math.round(totalVol * 10000) / 10000,
+        avg_tx_value: avgVal === null ? null : Math.round(avgVal * 10000) / 10000,
+        counterparty_diversity: entity.unique_counterparties ?? null
       },
       cluster: clusterProfile,
       risk: {
-        score: entity.risk_score || 0,
-        level: entity.risk_level || 'LOW',
+        score: entity.risk_score ?? null,
+        level: entity.risk_level || 'UNANALYZED',
         is_seed_illicit: entity.is_seed_illicit || false,
         propagated_risk: entity.propagated_risk || 0,
         components: {
-          ml_anomaly: entity.ml_anomaly_score || Math.round((entity.risk_score || 0) * 0.45),
-          graph_risk: entity.graph_risk_score || Math.round((entity.risk_score || 0) * 0.35),
-          velocity_signal: entity.velocity_risk || Math.round((entity.risk_score || 0) * 0.2)
+          ml_anomaly: entity.ml_anomaly_score ?? null,
+          graph_risk: entity.graph_risk_score ?? null,
+          velocity_signal: entity.velocity_risk ?? null
         }
       },
       transactions: txs,
@@ -783,9 +788,7 @@ const handleWalletAnalysis = async (req, res) => {
         nodes: Array.from(nodesMap.values()),
         edges: graphEdges
       },
-      patterns: entity.detected_patterns && entity.detected_patterns.length > 0 
-        ? entity.detected_patterns 
-        : ['high_velocity_flow', 'multi_input_aggregation'],
+      patterns: entity.detected_patterns || [],
       investigation: {
         active_case: !!activeCase,
         case_id: activeCase?.investigation_id || null,
@@ -860,11 +863,11 @@ app.get('/api/bitcoin/entity/:entity_id', async (req, res) => {
     const enrichedEntity = {
       ...entity,
       risk_components: {
-        ml_anomaly: entity.ml_anomaly_score || 0,
-        graph_risk: entity.graph_risk_score || 0,
-        velocity_signal: entity.velocity_risk || 0
+        ml_anomaly: entity.ml_anomaly_score ?? null,
+        graph_risk: entity.graph_risk_score ?? null,
+        velocity_signal: entity.velocity_risk ?? null
       },
-      propagated_risk: entity.propagated_risk || 0,
+      propagated_risk: entity.propagated_risk ?? null,
       patterns: entity.detected_patterns || [],
       investigation_recommended: entity.risk_score >= 65,
       connected_entities: [] // This could be populated by a graph query if needed
@@ -918,8 +921,8 @@ app.get('/api/bitcoin/graph/:node_id', async (req, res) => {
         id: tx.txid,
         label: `TX:${tx.txid.slice(0, 6)}...`,
         type: 'transaction',
-        risk_score: tx.risk_score || 0,
-        risk_level: tx.risk_level || 'LOW',
+        risk_score: tx.risk_score ?? null,
+        risk_level: tx.risk_level || 'UNANALYZED',
         value_btc: tx.total_output_btc
       });
 
@@ -930,8 +933,8 @@ app.get('/api/bitcoin/graph/:node_id', async (req, res) => {
               id: inp.address,
               label: `Addr:${inp.address.slice(0, 6)}...`,
               type: 'address',
-              risk_score: tx.risk_score || 0,
-              risk_level: tx.risk_level || 'LOW'
+              risk_score: tx.risk_score ?? null,
+              risk_level: tx.risk_level || 'UNANALYZED'
             });
           }
           edges.push({ source: inp.address, target: tx.txid, edge_type: 'SPENT', value_btc: inp.value_btc });
@@ -945,8 +948,8 @@ app.get('/api/bitcoin/graph/:node_id', async (req, res) => {
               id: out.address,
               label: `Addr:${out.address.slice(0, 6)}...`,
               type: 'address',
-              risk_score: tx.risk_score || 0,
-              risk_level: tx.risk_level || 'LOW'
+              risk_score: tx.risk_score ?? null,
+              risk_level: tx.risk_level || 'UNANALYZED'
             });
           }
           edges.push({ source: tx.txid, target: out.address, edge_type: 'CREATED', value_btc: out.value_btc });
@@ -1011,8 +1014,8 @@ app.get('/api/bitcoin/clusters', async (req, res) => {
             name: `Behavioral Cluster #${g._id}`,
             description: `Data-derived community of ${g.entity_count} entities sharing structural transaction behavior.`,
             entity_count: g.entity_count,
-            avg_volume_btc: Math.round((g.avg_volume_btc || 0) * 10000) / 10000,
-            avg_velocity_1h: Math.round((g.avg_velocity_1h || 1.0) * 10) / 10,
+            avg_volume_btc: g.avg_volume_btc === null ? null : Math.round((g.avg_volume_btc ?? 0) * 10000) / 10000,
+            avg_velocity_1h: g.avg_velocity_1h === null ? null : Math.round((g.avg_velocity_1h ?? 0) * 10) / 10,
             anomaly_rate_pct: Math.round(((g.outliers || 0) / g.entity_count) * 1000) / 10
           }));
         }
@@ -1085,26 +1088,12 @@ app.get('/api/bitcoin/investigations', async (req, res) => {
 
 app.post('/api/bitcoin/investigations', async (req, res) => {
   try {
-    if (process.env.DEMO_READ_ONLY === 'true') {
-      return res.status(403).json({
-        error: 'Investigation creation is disabled in public demo read-only mode.',
-        mode: 'DEMO_READ_ONLY'
-      });
-    }
+    if (rejectWriteUnlessAuthorized(req, res)) return;
 
     const body = req.body || {};
-    const seedEntityId = body.seed_entity_id || (body.entities || [])[0] || '';
-    const seedTxid = body.seed_txid || body.seed_transaction_id || (body.transactions || [])[0] || '';
-
-    if (!seedEntityId && !seedTxid) {
-      return res.status(400).json({
-        error: 'Must specify at least seed_entity_id or seed_txid to start an investigation'
-      });
-    }
-
-    const title = body.title || `Targeted Investigation: ${seedEntityId || seedTxid.slice(0, 10)}`;
-    const priority = body.priority || 'HIGH';
-    const notes = body.notes || '';
+    const validated = validateInvestigationBody(body);
+    if (validated.error) return res.status(400).json({ error: validated.error });
+    const { seedEntityId, seedTxid, title, priority, notes } = validated;
 
     // Execute the Python investigation engine
     const args = [
@@ -1288,7 +1277,7 @@ app.get('/api/bitcoin/ip-correlations', async (req, res) => {
         anonymity_score: e.anonymity_score || 0,
         cross_entity_links: e.cross_entity_links || 0,
         is_seed_illicit: e.is_seed_illicit || false,
-        risk_score: e.risk_score || 0,
+        risk_score: e.risk_score ?? null,
       })),
     });
   } catch (error) {
@@ -1299,33 +1288,11 @@ app.get('/api/bitcoin/ip-correlations', async (req, res) => {
 // 11. Bulk Ingestion Endpoint (Executes real V.E.C.T.O.R intelligence pipeline)
 app.post('/api/bitcoin/ingest', async (req, res) => {
   try {
-    if (process.env.DEMO_READ_ONLY === 'true') {
-      return res.status(403).json({
-        error: 'Transaction ingestion is disabled in public demo read-only mode.',
-        mode: 'DEMO_READ_ONLY'
-      });
-    }
+    if (rejectWriteUnlessAuthorized(req, res)) return;
 
-    const { transactions } = req.body || {};
-    if (!transactions || !Array.isArray(transactions) || transactions.length === 0) {
-      return res.status(400).json({
-        error: 'Request body must contain a non-empty "transactions" array'
-      });
-    }
-
-    if (transactions.length > 50) {
-      return res.status(413).json({
-        error: 'Batch size exceeds maximum limit of 50 transactions per real-time analytical ingestion request.'
-      });
-    }
-
-    // Validate transaction structures
-    for (let i = 0; i < transactions.length; i++) {
-      const tx = transactions[i];
-      if (!tx || typeof tx !== 'object') {
-        return res.status(400).json({ error: `Transaction at index ${i} is not a valid object` });
-      }
-    }
+    const validationError = validateAnalyzedTransactions(req.body);
+    if (validationError) return res.status(validationError.includes('maximum limit') ? 413 : 400).json({ error: validationError });
+    const { transactions } = req.body;
 
     // Spawn the Python transaction analysis engine
     const child = spawn(PYTHON_CMD, ['-m', 'bitcoin.analyze_transaction', '--stdin'], {
@@ -1390,23 +1357,11 @@ app.post('/api/bitcoin/ingest', async (req, res) => {
 // 11b. Raw Ingestion Endpoint (Records raw transactions with explicit pending status)
 app.post('/api/bitcoin/ingest/raw', async (req, res) => {
   try {
-    if (process.env.DEMO_READ_ONLY === 'true') {
-      return res.status(403).json({
-        error: 'Raw transaction ingestion is disabled in public demo read-only mode.',
-        mode: 'DEMO_READ_ONLY'
-      });
-    }
+    if (rejectWriteUnlessAuthorized(req, res)) return;
 
-    const { transactions } = req.body || {};
-    if (!transactions || !Array.isArray(transactions) || transactions.length === 0) {
-      return res.status(400).json({ error: 'Request body must contain a non-empty "transactions" array' });
-    }
-
-    if (transactions.length > 200) {
-      return res.status(413).json({
-        error: 'Raw batch size exceeds maximum limit of 200 transactions.'
-      });
-    }
+    const validationError = validateRawTransactions(req.body);
+    if (validationError) return res.status(validationError.includes('maximum limit') ? 413 : 400).json({ error: validationError });
+    const { transactions } = req.body;
 
     const docs = transactions.map(tx => ({
       ...tx,

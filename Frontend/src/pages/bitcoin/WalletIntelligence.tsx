@@ -106,8 +106,9 @@ const WalletIntelligence: React.FC = () => {
   }
 
   const isColdStart = analysis.is_known === false;
-  const isHighRisk = analysis.risk.score >= 70;
-  const isMediumRisk = analysis.risk.score >= 35 && analysis.risk.score < 70;
+  const isHighRisk = analysis.risk.score !== null && analysis.risk.score >= 70;
+  const isMediumRisk = analysis.risk.score !== null && analysis.risk.score >= 35 && analysis.risk.score < 70;
+  const riskColor = analysis.risk.score === null ? 'text-[var(--text-muted)]' : isHighRisk ? 'text-[var(--risk-critical)]' : isMediumRisk ? 'text-amber-400' : 'text-[var(--success)]';
 
   return (
     <div className="space-y-6 max-w-6xl mx-auto pb-12">
@@ -124,14 +125,14 @@ const WalletIntelligence: React.FC = () => {
           <div>
             <div className="flex items-center gap-2 flex-wrap">
               <h1 className="text-2xl font-bold text-[var(--text-primary)]">Wallet Intelligence Profile</h1>
-              <span className={`px-2.5 py-0.5 rounded text-xs font-bold uppercase tracking-wider ${
+              <span className={`px-2.5 py-0.5 rounded text-xs font-bold uppercase tracking-wider ${analysis.risk.score === null ? 'bg-[var(--bg-elevated)] text-[var(--text-muted)] border border-[var(--border-subtle)]' :
                 isHighRisk 
                   ? 'bg-[var(--risk-critical)]/20 text-[var(--risk-critical)] border border-[var(--risk-critical)]/30' 
                   : isMediumRisk
                     ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30'
                     : 'bg-[var(--success)]/20 text-[var(--success)] border border-[var(--success)]/30'
               }`}>
-                {analysis.risk.level} RISK ({analysis.risk.score}/100)
+                {analysis.risk.score === null ? analysis.risk.level : `${analysis.risk.level} RISK (${analysis.risk.score}/100)`}
               </span>
               {isColdStart && (
                 <span className="px-2 py-0.5 rounded text-xs font-semibold bg-blue-500/20 text-blue-400 border border-blue-500/30">
@@ -197,7 +198,7 @@ const WalletIntelligence: React.FC = () => {
           {/* Risk Card */}
           <div className="bg-[var(--bg-surface)] rounded-xl p-6 border border-[var(--border-subtle)] shadow-sm relative overflow-hidden">
             <div className={`absolute top-0 left-0 w-1.5 h-full ${
-              isHighRisk ? 'bg-[var(--risk-critical)]' : isMediumRisk ? 'bg-amber-400' : 'bg-[var(--success)]'
+              analysis.risk.score === null ? 'bg-[var(--border-subtle)]' : isHighRisk ? 'bg-[var(--risk-critical)]' : isMediumRisk ? 'bg-amber-400' : 'bg-[var(--success)]'
             }`} />
             <h3 className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider mb-4 flex items-center gap-2">
               <ShieldAlert className="w-4 h-4 text-[var(--accent-primary)]" /> Risk Assessment
@@ -205,9 +206,9 @@ const WalletIntelligence: React.FC = () => {
             
             <div className="flex items-end gap-2 mb-6">
               <span className={`text-4xl font-bold font-mono ${
-                isHighRisk ? 'text-[var(--risk-critical)]' : isMediumRisk ? 'text-amber-400' : 'text-[var(--success)]'
+                riskColor
               }`}>
-                {analysis.risk.score.toFixed(1)}
+                {analysis.risk.score === null ? '—' : analysis.risk.score.toFixed(1)}
               </span>
               <span className="text-[var(--text-muted)] mb-1 text-sm font-mono">/ 100</span>
             </div>
@@ -215,15 +216,15 @@ const WalletIntelligence: React.FC = () => {
             <div className="space-y-3">
               <div className="flex justify-between items-center text-xs">
                 <span className="text-[var(--text-muted)]">ML Behavioral Outlier</span>
-                <span className="font-mono font-semibold text-[var(--text-primary)]">{analysis.risk.components.ml_anomaly} pts</span>
+                <span className="font-mono font-semibold text-[var(--text-primary)]">{analysis.risk.components.ml_anomaly ?? '—'}{analysis.risk.components.ml_anomaly === null ? '' : ' pts'}</span>
               </div>
               <div className="flex justify-between items-center text-xs">
                 <span className="text-[var(--text-muted)]">Graph Topology Risk</span>
-                <span className="font-mono font-semibold text-[var(--text-primary)]">{analysis.risk.components.graph_risk} pts</span>
+                <span className="font-mono font-semibold text-[var(--text-primary)]">{analysis.risk.components.graph_risk ?? '—'}{analysis.risk.components.graph_risk === null ? '' : ' pts'}</span>
               </div>
               <div className="flex justify-between items-center text-xs">
                 <span className="text-[var(--text-muted)]">Velocity Spike Signal</span>
-                <span className="font-mono font-semibold text-[var(--text-primary)]">{analysis.risk.components.velocity_signal} pts</span>
+                <span className="font-mono font-semibold text-[var(--text-primary)]">{analysis.risk.components.velocity_signal ?? '—'}{analysis.risk.components.velocity_signal === null ? '' : ' pts'}</span>
               </div>
               {analysis.risk.propagated_risk > 0 && (
                 <div className="flex justify-between items-center text-xs pt-2 border-t border-[var(--border-subtle)]">
@@ -329,7 +330,7 @@ const WalletIntelligence: React.FC = () => {
                 <TrendingUp className="w-3.5 h-3.5 text-[var(--accent-primary)]" /> 1H Velocity
               </div>
               <div className="text-xl font-mono font-bold text-[var(--accent-primary)]">
-                {analysis.behavior.velocity_1h} <span className="text-xs text-[var(--text-muted)] font-sans font-normal">tx/hr</span>
+                {analysis.behavior.velocity_1h ?? '—'} <span className="text-xs text-[var(--text-muted)] font-sans font-normal">tx/hr</span>
               </div>
             </div>
             <div className="bg-[var(--bg-surface)] p-5 rounded-xl border border-[var(--border-subtle)] shadow-sm">
@@ -337,7 +338,7 @@ const WalletIntelligence: React.FC = () => {
                 <Clock className="w-3.5 h-3.5 text-[var(--network-cyan)]" /> 24H Velocity
               </div>
               <div className="text-xl font-mono font-bold text-[var(--text-primary)]">
-                {analysis.behavior.velocity_24h} <span className="text-xs text-[var(--text-muted)] font-sans font-normal">tx/day</span>
+                {analysis.behavior.velocity_24h ?? '—'} <span className="text-xs text-[var(--text-muted)] font-sans font-normal">tx/day</span>
               </div>
             </div>
             <div className="bg-[var(--bg-surface)] p-5 rounded-xl border border-[var(--border-subtle)] shadow-sm">
@@ -345,7 +346,7 @@ const WalletIntelligence: React.FC = () => {
                 <Box className="w-3.5 h-3.5 text-[var(--success)]" /> Total Volume
               </div>
               <div className="text-xl font-mono font-bold text-[var(--success)]">
-                {analysis.behavior.total_volume_btc.toFixed(2)} <span className="text-xs text-[var(--text-muted)] font-sans font-normal">BTC</span>
+                {analysis.behavior.total_volume_btc === null ? '—' : analysis.behavior.total_volume_btc.toFixed(2)} <span className="text-xs text-[var(--text-muted)] font-sans font-normal">BTC</span>
               </div>
             </div>
             <div className="bg-[var(--bg-surface)] p-5 rounded-xl border border-[var(--border-subtle)] shadow-sm">
@@ -353,7 +354,7 @@ const WalletIntelligence: React.FC = () => {
                 <Fingerprint className="w-3.5 h-3.5 text-[var(--behavior-purple)]" /> Diversity
               </div>
               <div className="text-xl font-mono font-bold text-[var(--text-primary)]">
-                {analysis.behavior.counterparty_diversity} <span className="text-xs text-[var(--text-muted)] font-sans font-normal">peers</span>
+                {analysis.behavior.counterparty_diversity ?? '—'} <span className="text-xs text-[var(--text-muted)] font-sans font-normal">peers</span>
               </div>
             </div>
           </div>
@@ -402,7 +403,7 @@ const WalletIntelligence: React.FC = () => {
                     </div>
                     <div className="text-right shrink-0">
                       <span className="text-xs font-mono font-bold text-[var(--risk-critical)] block">
-                        Risk {lead.risk_score?.toFixed(1) || 0}
+                        Risk {typeof lead.risk_score === 'number' ? lead.risk_score.toFixed(1) : '—'}
                       </span>
                       <span className="text-[10px] text-[var(--text-muted)] font-mono">
                         TX: {lead.txid ? lead.txid.substring(0, 10) + '...' : 'N/A'}
@@ -437,12 +438,12 @@ const WalletIntelligence: React.FC = () => {
                   </div>
                   <div className="text-right shrink-0">
                     <span className="font-mono font-bold text-[var(--text-primary)] block text-xs">
-                      ₿ {typeof tx.total_output_btc === 'number' ? tx.total_output_btc.toFixed(4) : (tx.amount_btc || 0).toFixed(4)}
+                      {typeof tx.total_output_btc === 'number' ? `₿ ${tx.total_output_btc.toFixed(4)}` : typeof tx.amount_btc === 'number' ? `₿ ${tx.amount_btc.toFixed(4)}` : 'Amount unavailable'}
                     </span>
                     <span className={`text-[10px] font-bold ${
                       tx.risk_score >= 70 ? 'text-[var(--risk-critical)]' : tx.risk_score >= 35 ? 'text-amber-400' : 'text-[var(--success)]'
                     }`}>
-                      {tx.risk_score?.toFixed(1) || 0} Risk
+                      {typeof tx.risk_score === 'number' ? tx.risk_score.toFixed(1) : '—'} Risk
                     </span>
                   </div>
                 </div>

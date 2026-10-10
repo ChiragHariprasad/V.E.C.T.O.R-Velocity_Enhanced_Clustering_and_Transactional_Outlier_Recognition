@@ -16,11 +16,11 @@ import { useBitcoin } from '../../context/BitcoinContext';
 export const BitcoinModelPerformance: React.FC = () => {
   const { status, refreshAll, isLoading } = useBitcoin();
 
-  const modelStatus = status?.model?.status || (status?.model_status === 'OPERATIONAL' ? 'OPERATIONAL' : 'MODEL_LOADING');
+  const modelStatus = status?.model?.status || status?.model_status || 'MODEL_UNVERIFIED';
   const isOperational = modelStatus === 'OPERATIONAL';
   const featuresCount = status?.model?.features_count ?? 66;
-  const clustersLoaded = status?.model?.clusters_loaded || [0, 1, 2];
-  const fallbackModel = status?.model?.fallback_model || 'xgboost';
+  const clustersLoaded = status?.model?.clusters_loaded || [];
+  const fallbackModel = status?.model?.fallback_model || 'NOT REPORTED';
 
   const inferenceStatus = status?.inference?.status || 'unmeasured';
   const hasMeasuredLatency = inferenceStatus === 'measured' && status?.inference?.latency_ms !== null && status?.inference?.latency_ms !== undefined;
@@ -28,8 +28,8 @@ export const BitcoinModelPerformance: React.FC = () => {
   const avgLatency = status?.inference?.avg_latency_ms ? `${status?.inference?.avg_latency_ms.toFixed(1)} ms` : 'NOT MEASURED';
   const p95Latency = status?.inference?.p95_latency_ms ? `${status?.inference?.p95_latency_ms.toFixed(1)} ms` : 'NOT MEASURED';
 
-  const tps = status?.throughput?.tx_per_sec ?? status?.tps ?? 0.0;
-  const lastBatchTps = status?.throughput?.last_batch_tps ? `${status.throughput.last_batch_tps} tx/s` : 'NOT MEASURED';
+  const tps = status?.throughput?.tx_per_sec ?? status?.tps ?? null;
+  const lastBatchTps = status?.throughput?.last_batch_tps !== null && status?.throughput?.last_batch_tps !== undefined ? `${status.throughput.last_batch_tps} tx/s` : 'NOT MEASURED';
   const totalProcessed = status?.storage?.total_transactions ?? status?.total_transactions ?? 0;
 
   return (
@@ -56,7 +56,7 @@ export const BitcoinModelPerformance: React.FC = () => {
                 </span>
               </div>
               <p className="text-xs text-[var(--text-muted)] mt-1">
-                Version: <span className="font-mono font-semibold text-[var(--text-primary)]">{status?.model?.version || 'bitcoin_v1'}</span> • Target Architecture: Hybrid UMAP Embeddings + Isolation Forest / XGBoost Outlier Ensemble
+                Version: <span className="font-mono font-semibold text-[var(--text-primary)]">{status?.model?.version || 'NOT REPORTED'}</span> • Target Architecture: Hybrid UMAP Embeddings + Isolation Forest / XGBoost Outlier Ensemble
               </p>
             </div>
           </div>
@@ -116,7 +116,7 @@ export const BitcoinModelPerformance: React.FC = () => {
             <Gauge className="w-4 h-4 text-[var(--behavior-purple)]" />
           </div>
           <div className="text-2xl font-bold font-mono text-[var(--text-primary)]">
-            {tps > 0 ? `${tps.toFixed(1)} tx/s` : 'IDLE (0.0 tx/s)'}
+            {tps === null ? 'NOT MEASURED' : `${tps.toFixed(1)} tx/s`}
           </div>
           <div className="text-[11px] text-[var(--text-muted)] mt-1">
             Last batch: <span className="font-mono text-[var(--text-primary)]">{lastBatchTps}</span>
@@ -250,10 +250,10 @@ export const BitcoinModelPerformance: React.FC = () => {
             <div className="p-3 bg-[var(--bg-surface)] border border-[var(--border-subtle)] rounded-xl flex items-center justify-between">
               <div>
                 <p className="text-xs font-semibold text-[var(--text-primary)]">Active Clustering Partitions</p>
-                <p className="text-[11px] text-[var(--text-muted)]">Loaded behavioral cluster centroids in memory</p>
+                <p className="text-[11px] text-[var(--text-muted)]">Cluster assignments reported by the current runtime</p>
               </div>
               <span className="text-[11px] font-mono font-bold text-[var(--text-primary)]">
-                {clustersLoaded.length} Partitions (0, 1, 2)
+                {clustersLoaded.length ? `${clustersLoaded.length} Partitions (${clustersLoaded.join(', ')})` : 'No loaded partitions reported'}
               </span>
             </div>
           </div>

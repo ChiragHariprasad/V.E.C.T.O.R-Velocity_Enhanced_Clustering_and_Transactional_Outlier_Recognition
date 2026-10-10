@@ -1,5 +1,7 @@
 # V.E.C.T.O.R — GOLDEN PATH END-TO-END TEST
 
+> **Status: HISTORICAL — superseded.** This is an earlier execution record and contains stale claims. It is not current evidence for HEAD; see `GO_NO_GO.md`.
+
 > **Objective**: Prove the entire data flow from real Bitcoin transaction ingestion → Entity Resolution → ML Inference → Risk → Graph → Investigation → UI/API
 
 ---

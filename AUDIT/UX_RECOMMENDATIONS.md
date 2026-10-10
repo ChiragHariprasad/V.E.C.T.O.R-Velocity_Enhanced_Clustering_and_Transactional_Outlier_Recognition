@@ -1,5 +1,7 @@
 # V.E.C.T.O.R — UX RECOMMENDATIONS
 
+> **Status: HISTORICAL — recommendations reviewed.** Some listed issues have since changed, while others remain. This document is retained as history, not as a current issue tracker; see `GO_NO_GO.md`.
+
 ---
 
 ## Priority 1: Must Fix Before Demo

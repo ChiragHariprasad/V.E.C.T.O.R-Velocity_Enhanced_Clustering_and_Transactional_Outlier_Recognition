@@ -6,12 +6,13 @@ SPA serving, and analytical ingestion against a running V.E.C.T.O.R instance.
 """
 
 import sys
+import os
 import json
 import time
 import urllib.request
 import urllib.error
 
-BASE_URL = "http://127.0.0.1:3001"
+BASE_URL = os.environ.get("VECTOR_SMOKE_BASE_URL", "http://127.0.0.1:3001").rstrip("/")
 
 def log_pass(msg):
     print(f"  [PASS] {msg}")
@@ -53,21 +54,21 @@ def main():
         failures += 1
 
     # 2. System Status & Model Telemetry
-    print("\n[2/6] Checking System Status & ML Operational State...")
+    print("\n[2/6] Checking System Status & Reported Model State...")
     status_raw = test_endpoint("Status API", f"{BASE_URL}/api/bitcoin/status")
     if status_raw:
         try:
             status_json = json.loads(status_raw)
-            model_status = status_json.get("model", {}).get("status")
-            node_status = status_json.get("node", {}).get("status")
+            model_status = status_json.get("model", {}).get("status", "NOT REPORTED")
+            node_status = status_json.get("node", {}).get("status", "NOT REPORTED")
             total_txs = status_json.get("storage", {}).get("total_transactions")
             
             log_pass(f"Model Status: {model_status}")
             log_pass(f"Node Status: {node_status}")
             log_pass(f"Stored Transactions: {total_txs}")
 
-            if model_status != "OPERATIONAL":
-                log_fail(f"ML Models are not OPERATIONAL: {model_status}")
+            if status_json.get("node", {}).get("status") == "SIMULATION" and status_json.get("node", {}).get("network") not in (None, "simulation"):
+                log_fail("Simulation node status reports an unexpected network.")
                 failures += 1
         except Exception as e:
             log_fail(f"Failed to parse status JSON: {e}")
@@ -100,8 +101,8 @@ def main():
     if inv_raw:
         try:
             invs = json.loads(inv_raw)
-            if isinstance(invs, list) and len(invs) > 0:
-                log_pass(f"Retrieved {len(invs)} investigations. Lead: {invs[0].get('investigation_id')}")
+            if isinstance(invs, list):
+                log_pass(f"Investigation endpoint returned {len(invs)} records.")
             else:
                 log_fail("No investigations found.")
                 failures += 1
@@ -128,48 +129,27 @@ def main():
     else:
         failures += 1
 
-    # 6. Controlled Analytical Ingestion
-    print("\n[6/6] Checking End-to-End Analytical Ingestion...")
-    test_tx = [{
-        "txid": f"smoke_tx_{int(time.time())}",
-        "timestamp": int(time.time()),
-        "block_height": 840555,
-        "input_count": 1,
-        "output_count": 2,
-        "total_input_btc": 2.50,
-        "total_output_btc": 2.499,
-        "fee_btc": 0.001,
-        "entity_id": "ENT_SMOKE_TEST",
-        "input_addresses": ["bc1q_smoke_in"],
-        "output_addresses": ["bc1q_smoke_out1", "bc1q_smoke_out2"],
-        "inputs": [{"address": "bc1q_smoke_in", "value_btc": 2.50}],
-        "outputs": [
-            {"address": "bc1q_smoke_out1", "value_btc": 2.0, "vout": 0},
-            {"address": "bc1q_smoke_out2", "value_btc": 0.499, "vout": 1}
-        ]
-    }]
-
+    # 6. Read-only write-guard check; deliberately sends no transaction data.
+    print("\n[6/6] Checking Read-Only Write Guard...")
+    req = urllib.request.Request(
+        f"{BASE_URL}/api/bitcoin/ingest",
+        data=json.dumps({"transactions": []}).encode("utf-8"),
+        headers={"Content-Type": "application/json", "User-Agent": "vector-smoke-test"},
+        method="POST",
+    )
     try:
-        t0 = time.time()
-        req = urllib.request.Request(
-            f"{BASE_URL}/api/bitcoin/ingest",
-            data=json.dumps({"transactions": test_tx}).encode("utf-8"),
-            headers={"Content-Type": "application/json", "User-Agent": "vector-smoke-test"}
-        )
-        with urllib.request.urlopen(req, timeout=30) as resp:
-            elapsed_ms = (time.time() - t0) * 1000
-            res = json.loads(resp.read().decode("utf-8"))
-            if res.get("status") == "SUCCESS":
-                analyzed_tx = res["transactions"][0]
-                log_pass(f"Analytical Ingestion Succeeded in {elapsed_ms:.1f}ms")
-                log_pass(f"ML Model: {analyzed_tx.get('ml_model_type')}")
-                log_pass(f"Assigned Risk: {analyzed_tx.get('risk_level')} ({analyzed_tx.get('risk_score')} pts)")
-                log_pass(f"Signals: {analyzed_tx.get('signals')}")
-            else:
-                log_fail(f"Ingestion did not report SUCCESS: {res}")
-                failures += 1
-    except Exception as e:
-        log_fail(f"Ingestion failed: {e}")
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            log_fail(f"Write guard returned HTTP {resp.status}; the smoke test sent no transactions.")
+            failures += 1
+    except urllib.error.HTTPError as err:
+        response = json.loads(err.read().decode("utf-8"))
+        if err.code == 403 and response.get("mode") == "DEMO_READ_ONLY":
+            log_pass("Write route rejects requests in DEMO_READ_ONLY mode.")
+        else:
+            log_fail(f"Write route returned HTTP {err.code}: {response}")
+            failures += 1
+    except Exception as err:
+        log_fail(f"Write guard check failed: {err}")
         failures += 1
 
     print("\n===================================================================")

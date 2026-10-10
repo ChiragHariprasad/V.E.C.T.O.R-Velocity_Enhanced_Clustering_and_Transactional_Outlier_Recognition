@@ -1,5 +1,7 @@
 # V.E.C.T.O.R Baseline Audit Report
 
+> **Status: HISTORICAL — superseded.** This baseline identifies a prior checkout and prior environment. Its results are not current verification of HEAD; see `GO_NO_GO.md` and `VALIDATION_RESULTS.md`.
+
 > **Repository**: `vinith0306/V.E.C.T.O.R-Velocity_Enhanced_Clustering_and_Transactional_Outlier_Recognition`  
 > **Checked-out Branch**: `update-branch`  
 > **Verified Head Commit**: `1be77e2` ("add frontend components, pages, and context for bitcoin analytics and investigation system")  

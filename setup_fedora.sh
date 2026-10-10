@@ -1,7 +1,9 @@
 #!/bin/bash
 # =============================================================================
-# V.E.C.T.O.R Setup Script for Fedora (WSL)
-# Installs all dependencies: MongoDB, Redis, Python 3.11+, Node.js 18+
+# LEGACY Fedora/WSL bootstrap; this installer is environment-specific and was
+# not exercised in the current verification environment. Prefer README.md and
+# Docker Compose for the documented demo setup.
+# Installs packages system-wide and may require sudo and external repositories.
 # =============================================================================
 set -e
 
@@ -122,5 +124,5 @@ echo ""
 echo "═══════════════════════════════════════════════════════════════"
 echo "  ✅ Setup complete!"
 echo ""
-echo "  Next step: Run ./run.sh to start the system"
+echo "  Next step: configure .env, start MongoDB, then run ./start_demo.sh"
 echo "═══════════════════════════════════════════════════════════════"

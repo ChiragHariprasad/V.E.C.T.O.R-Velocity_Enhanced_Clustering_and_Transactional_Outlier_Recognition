@@ -1,8 +1,8 @@
 ﻿import { MongoClient } from 'mongodb';
 import crypto from 'crypto';
 
-const mongoURL = 'mongodb://localhost:27017';
-const dbName = 'RedisTransactions';
+const mongoURL = process.env.MONGO_URI || process.env.MONGODB_URI || 'mongodb://127.0.0.1:27017';
+const dbName = process.env.MONGO_DB_NAME || 'RedisTransactions';
 
 // GeoIP lookup table (bundled â€” mirrors the Python backend)
 const GEOIP_TABLE = [
@@ -340,12 +340,17 @@ export async function seedBitcoinDatabase(force = false) {
     }
   ];
 
-  await blockCol.insertMany(blocks);
-  await txCol.insertMany(transactions);
-  await entityCol.insertMany(entities);
-  if (riskEvents.length > 0) await riskCol.insertMany(riskEvents);
-  await invCol.insertMany(investigations);
-  if (geoStats.length > 0) await ipCorCol.insertMany(geoStats);
+  const markFixture = records => records.map(record => ({
+    ...record,
+    data_mode: 'SIMULATION',
+    data_source: 'seed_bitcoin.js synthetic demo fixture'
+  }));
+  await blockCol.insertMany(markFixture(blocks));
+  await txCol.insertMany(markFixture(transactions));
+  await entityCol.insertMany(markFixture(entities));
+  if (riskEvents.length > 0) await riskCol.insertMany(markFixture(riskEvents));
+  await invCol.insertMany(markFixture(investigations));
+  if (geoStats.length > 0) await ipCorCol.insertMany(markFixture(geoStats));
 
   console.log(`âœ… Seeded ${blocks.length} blocks, ${transactions.length} txs, ${entities.length} entities, ${riskEvents.length} risk leads, ${investigations.length} investigations, ${geoStats.length} geo records.`);
   await client.close();

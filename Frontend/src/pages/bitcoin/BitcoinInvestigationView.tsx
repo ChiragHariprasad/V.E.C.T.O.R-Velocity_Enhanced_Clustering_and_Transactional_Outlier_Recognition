@@ -93,17 +93,20 @@ const BitcoinInvestigationView: React.FC<Props> = ({ investigationId, onBack }) 
   investigationGraph.nodes.forEach(n => { if (n.is_seed) visibleNodeIds.add(n.id); });
   const filteredNodes = investigationGraph.nodes.filter(n => visibleNodeIds.has(n.id));
 
-  const maxHops = investigationFlow.length > 0 
-    ? Math.max(...investigationFlow.map(f => f.hop || 1)) 
-    : (investigationGraph.nodes.length > 0 ? Math.min(3, Math.max(1, Math.floor(investigationGraph.nodes.length / 10))) : 3);
+  const maxHops = investigationFlow.length > 0
+    ? Math.max(...investigationFlow.map(f => f.hop || 1))
+    : Math.max(0, ...investigationGraph.edges.map(edge => edge.hop || 0));
     
   const taintedEntitiesCount = investigationFlow.length > 0
     ? new Set(investigationFlow.map(f => f.destination_entity)).size
     : investigationGraph.nodes.length;
 
-  const avgRetentionRate = investigationFlow.length > 0
-    ? (investigationFlow.reduce((acc: number, f: { retention_rate?: number; forwarding_ratio?: number }) => acc + (typeof f.retention_rate === 'number' ? f.retention_rate : typeof f.forwarding_ratio === 'number' ? f.forwarding_ratio * 100 : 0), 0) / investigationFlow.length).toFixed(1) + '%'
-    : (investigationGraph.edges.length > 0 ? '68.2%' : '--');
+  const retentionValues = investigationFlow
+    .map(f => typeof f.retention_rate === 'number' ? f.retention_rate : typeof f.forwarding_ratio === 'number' ? f.forwarding_ratio * 100 : null)
+    .filter((value): value is number => value !== null);
+  const avgRetentionRate = retentionValues.length > 0
+    ? `${(retentionValues.reduce((sum, value) => sum + value, 0) / retentionValues.length).toFixed(1)}%`
+    : '--';
 
   return (
     <div className="space-y-6 max-w-6xl mx-auto pb-16">
@@ -143,7 +146,7 @@ const BitcoinInvestigationView: React.FC<Props> = ({ investigationId, onBack }) 
             <div className="bg-[var(--bg-elevated)] p-3 rounded-xl border border-[var(--border-default)] text-center min-w-[120px]">
               <div className="text-[10px] uppercase font-bold text-[var(--text-muted)]">Dossier Risk</div>
               <div className="text-2xl font-black font-mono text-[var(--risk-critical)]">
-                {inv.risk_score?.toFixed(1) || '0.0'}
+                {typeof inv.risk_score === 'number' ? inv.risk_score.toFixed(1) : '—'}
               </div>
             </div>
 
@@ -209,8 +212,8 @@ const BitcoinInvestigationView: React.FC<Props> = ({ investigationId, onBack }) 
 
           <div className="p-4 bg-[var(--bg-elevated)] rounded-xl border border-[var(--border-default)]">
             <span className="text-[10px] font-bold text-[var(--text-muted)] uppercase block mb-1">HDBSCAN Community</span>
-            <span className="text-base font-bold text-[var(--behavior-purple)]">
-              Cluster #{seed.cluster_id ?? 0}
+              <span className="text-base font-bold text-[var(--behavior-purple)]">
+              {seed.cluster_id !== undefined ? `Cluster #${seed.cluster_id}` : 'Unassigned'}
             </span>
             <div className="mt-1 text-xs text-[var(--text-muted)] font-semibold">
               {seed.cluster_archetype || (seed.cluster_id !== undefined ? `Behavioral Cluster #${seed.cluster_id}` : 'Unassigned Community')}
@@ -238,26 +241,26 @@ const BitcoinInvestigationView: React.FC<Props> = ({ investigationId, onBack }) 
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-xs font-mono">
           <div className="p-4 bg-[var(--bg-elevated)] rounded-xl border border-[var(--border-default)]">
             <span className="text-[10px] font-bold text-[var(--text-muted)] font-sans uppercase block mb-1">1H Velocity</span>
-            <span className="text-xl font-bold text-[var(--accent-primary)]">{seed.velocity_1h ?? 0.0}</span>
+            <span className="text-xl font-bold text-[var(--accent-primary)]">{seed.velocity_1h ?? '—'}</span>
             <span className="text-[10px] text-[var(--text-muted)] font-sans ml-1">tx/hr</span>
           </div>
 
           <div className="p-4 bg-[var(--bg-elevated)] rounded-xl border border-[var(--border-default)]">
             <span className="text-[10px] font-bold text-[var(--text-muted)] font-sans uppercase block mb-1">24H Velocity</span>
-            <span className="text-xl font-bold text-[var(--text-primary)]">{seed.velocity_24h ?? 0.0}</span>
+            <span className="text-xl font-bold text-[var(--text-primary)]">{seed.velocity_24h ?? '—'}</span>
             <span className="text-[10px] text-[var(--text-muted)] font-sans ml-1">tx/day</span>
           </div>
 
           <div className="p-4 bg-[var(--bg-elevated)] rounded-xl border border-[var(--border-default)]">
             <span className="text-[10px] font-bold text-[var(--text-muted)] font-sans uppercase block mb-1">Total Volume</span>
             <span className="text-xl font-bold text-emerald-500">
-              ₿ {Number(seed.total_volume_btc ?? 0).toFixed(2)}
+              {typeof seed.total_volume_btc === 'number' ? `₿ ${seed.total_volume_btc.toFixed(2)}` : '—'}
             </span>
           </div>
 
           <div className="p-4 bg-[var(--bg-elevated)] rounded-xl border border-[var(--border-default)]">
             <span className="text-[10px] font-bold text-[var(--text-muted)] font-sans uppercase block mb-1">Peer Diversity</span>
-            <span className="text-xl font-bold text-[var(--text-primary)]">{seed.counterparty_diversity ?? 0}</span>
+            <span className="text-xl font-bold text-[var(--text-primary)]">{seed.counterparty_diversity ?? '—'}</span>
             <span className="text-[10px] text-[var(--text-muted)] font-sans ml-1">peers</span>
           </div>
         </div>
@@ -286,7 +289,7 @@ const BitcoinInvestigationView: React.FC<Props> = ({ investigationId, onBack }) 
                   <GitFork className="w-3.5 h-3.5" /> Hop #{step.hop}
                 </span>
                 <span className="text-[11px] font-mono font-bold text-emerald-500 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/30">
-                  {((step.forwarding_ratio || 0.85) * 100).toFixed(0)}% Forwarded
+                  {typeof step.forwarding_ratio === 'number' ? `${(step.forwarding_ratio * 100).toFixed(0)}% Forwarded` : 'Forwarding unavailable'}
                 </span>
               </div>
 
@@ -369,7 +372,7 @@ const BitcoinInvestigationView: React.FC<Props> = ({ investigationId, onBack }) 
                     {node.label || node.id}
                   </div>
                   <div className="text-[10px] text-[var(--risk-critical)] font-bold mt-1">
-                    Risk: {node.risk_score?.toFixed(0) || 0}
+                    Risk: {typeof node.risk_score === 'number' ? node.risk_score.toFixed(0) : '—'}
                   </div>
                 </button>
               );

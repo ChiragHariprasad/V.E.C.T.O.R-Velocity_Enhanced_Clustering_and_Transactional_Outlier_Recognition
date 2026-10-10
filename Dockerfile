@@ -33,7 +33,7 @@ COPY Frontend/package*.json ./Frontend/
 
 # 4. Install Node.js frontend dependencies and build SPA
 WORKDIR /app/Frontend
-RUN npm install
+RUN npm ci
 COPY Frontend/ ./
 RUN npm run build
 

@@ -1,5 +1,7 @@
 # V.E.C.T.O.R — FRONTEND UI AUDIT (v2)
 
+> **Status: HISTORICAL — superseded.** Browser observations below are from a prior environment and include fallback values later found in source. They are not current UI test evidence.
+
 > **Audit Date**: 2026-09-18/19
 > **Method**: Verified via browser subagent executing actions against live frontend (localhost:5173).
 

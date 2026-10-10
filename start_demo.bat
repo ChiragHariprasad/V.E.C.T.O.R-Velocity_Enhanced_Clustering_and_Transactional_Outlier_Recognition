@@ -26,7 +26,7 @@ REM 2. Check if Frontend is built
 if not exist "Frontend\dist\index.html" (
     echo [INFO] Building production frontend bundle...
     cd Frontend
-    call npm install
+    call npm ci
     call npm run build
     cd ..
 )
@@ -35,13 +35,13 @@ REM 3. Set Environment Defaults
 set PORT=3001
 set MONGO_URI=mongodb://127.0.0.1:27017
 set MONGO_DB_NAME=RedisTransactions
-set BITCOIN_SIMULATION_MODE=false
-set DEMO_READ_ONLY=false
+set BITCOIN_SIMULATION_MODE=true
+set DEMO_READ_ONLY=true
 
 echo [INFO] Launching unified application server on port 3001...
 echo [INFO] Access the dashboard at http://localhost:3001
 start http://localhost:3001
 
 cd Frontend
-node server/index.js
+node --env-file=../.env server/index.js
 cd ..

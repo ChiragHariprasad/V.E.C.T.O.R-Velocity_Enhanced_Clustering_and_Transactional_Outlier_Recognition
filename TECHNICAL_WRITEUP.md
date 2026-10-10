@@ -1,4 +1,6 @@
 # V.E.C.T.O.R-BITCOIN: Technical Write-Up
+
+> **Status: DESIGN / HISTORICAL NARRATIVE.** This write-up contains proposal language and describes capabilities that may not exist in the current running application (including live Bitcoin feed ingestion, reclustering, claimed metrics and operational service behavior). The implementation map is in [System_Architecture.md](System_Architecture.md); do not treat this text as runtime evidence. Current verification is in [AUDIT/GO_NO_GO.md](AUDIT/GO_NO_GO.md).
 ## AI-Powered Monitoring & Analysis of Bitcoin Transaction Traffic
 
 **System:** V.E.C.T.O.R (Velocity-Enhanced Clustering and Transactional Outlier Recognition)  

@@ -43,53 +43,38 @@ class TestRemediationRegression(unittest.TestCase):
         features["avg_tx_value"] = 1.2
         features["tx_velocity_1h"] = 1.0
 
-        # Predict independently
+        # Identical feature input has the same model output irrespective of source labels.
         res_normal = self.ml_engine.predict(features, is_cold_start=False)
-        res_cold = self.ml_engine.predict(features, is_cold_start=True)
-
+        res_repeated = self.ml_engine.predict(features, is_cold_start=False)
         self.assertIsNotNone(res_normal["ml_score"])
-        self.assertIsNotNone(res_cold["ml_score"])
+        self.assertEqual(res_normal["ml_score"], res_repeated["ml_score"])
 
-        # Create two identical raw transactions differing ONLY in is_illicit label
-        tx_clean = {
-            "txid": "anti_leak_tx_clean_001",
-            "input_addresses": ["addr_test_clean"],
+        # Run the same transaction through independent pipelines; only the ground-truth
+        # label changes. Using separate pipelines prevents history or graph state from
+        # obscuring a label leak in the predicted ML component.
+        base_tx = {
+            "txid": "a" * 64,
+            "timestamp": "1700000000",
+            "input_addresses": ["addr_test_shared"],
             "output_addresses": ["addr_test_out"],
             "input_amounts": [2.0],
             "output_amounts": [1.99],
             "fee": 0.01,
-            "is_illicit": False,
-        }
-        tx_illicit = {
-            "txid": "anti_leak_tx_illicit_001",
-            "input_addresses": ["addr_test_illicit"],
-            "output_addresses": ["addr_test_out"],
-            "input_amounts": [2.0],
-            "output_amounts": [1.99],
-            "fee": 0.01,
-            "is_illicit": True,
         }
 
-        pipeline = BulkIngestPipeline(persist_to_mongo=False)
-        norm_clean = _normalize_row(tx_clean)
-        norm_illicit = _normalize_row(tx_illicit)
+        def analyze(label):
+            pipeline = BulkIngestPipeline(persist_to_mongo=False)
+            transaction = _normalize_row({**base_tx, "is_illicit": label})
+            pipeline.ingest([transaction])
+            return pipeline.processed_txs[0]
 
-        # Ingest both through the pipeline
-        pipeline.ingest([norm_clean, norm_illicit])
-
-        proc_clean = [t for t in pipeline.processed_txs if t["txid"] == norm_clean["txid"]][0]
-        proc_illicit = [t for t in pipeline.processed_txs if t["txid"] == norm_illicit["txid"]][0]
-
-        # The underlying ML model type must match
+        proc_clean = analyze(False)
+        proc_illicit = analyze(True)
         self.assertEqual(proc_clean["ml_model_type"], proc_illicit["ml_model_type"])
-
-        # Prior bug: bulk_ingest forced ml_score = max(ml_score, 0.85) if is_illicit.
-        # Now: model prediction is independent of the ground truth label.
-        ml_res_clean = self.ml_engine.predict(
-            {k: 0.0 for k in BITCOIN_FEATURE_KEYS}, is_cold_start=True
+        self.assertEqual(
+            proc_clean["risk_components"]["ml_score"],
+            proc_illicit["risk_components"]["ml_score"],
         )
-        # Verify the pipeline did not artificially inflate the ML score to >= 0.85 when features are benign
-        self.assertLess(proc_clean["risk_components"]["ml_score"], 85.0)
 
     # =========================================================================
     # 2. CANONICAL RISK CLASSIFICATION CONSISTENCY

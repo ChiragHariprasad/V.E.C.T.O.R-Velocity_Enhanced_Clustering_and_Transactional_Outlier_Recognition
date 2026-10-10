@@ -1,5 +1,7 @@
 # V.E.C.T.O.R — COMPREHENSIVE SYSTEM AUDIT REPORT (v2)
 
+> **Status: HISTORICAL — superseded.** This report describes an earlier audit and contains claims contradicted by the current source and environment. It must not be read as current readiness evidence.
+
 > **SIH26146**: AI-Powered Monitoring & Analysis of Bitcoin Transaction Traffic  
 > **Audit Date**: 2026-09-18/19  
 > **Auditor**: Antigravity AI Agent  

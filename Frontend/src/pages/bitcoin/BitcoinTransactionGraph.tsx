@@ -15,7 +15,11 @@ interface Props {
 const BitcoinTransactionGraph: React.FC<Props> = ({ initialNodeId }) => {
   const { graphData, fetchGraph, entities } = useBitcoin();
   const [selectedNode, setSelectedNode] = useState<GraphNode | null>(null);
-  const [targetId, setTargetId] = useState(initialNodeId || entities[0]?.entity_id || 'ENT_BTC_001');
+  const [targetId, setTargetId] = useState(initialNodeId || entities[0]?.entity_id || '');
+
+  useEffect(() => {
+    if (!targetId && entities[0]?.entity_id) setTargetId(entities[0].entity_id);
+  }, [entities, targetId]);
 
   useEffect(() => {
     if (targetId) {

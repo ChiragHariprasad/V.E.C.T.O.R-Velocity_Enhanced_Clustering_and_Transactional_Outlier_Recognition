@@ -117,12 +117,14 @@ export interface BitcoinClusterInfo {
   name: string;
   description: string;
   entity_count: number;
-  avg_volume_btc: number;
-  avg_velocity_1h: number;
-  anomaly_rate_pct: number;
+  avg_volume_btc: number | null;
+  avg_velocity_1h: number | null;
+  anomaly_rate_pct: number | null;
 }
 
 export interface BitcoinStatus {
+  dataset_mode?: 'SIMULATION' | 'MIXED' | 'IMPORTED_OR_LIVE_UNVERIFIED' | string;
+  simulated_transaction_count?: number;
   current_block_height: number | null;
   total_blocks_processed: number;
   total_transactions: number;
@@ -386,35 +388,35 @@ export interface WalletAnalysis {
     entity_id: string;
     primary_address: string;
     address_count: number;
-    cluster_id: number;
-    anonymity_score: number;
-    first_seen: string;
-    last_seen: string;
+    cluster_id: number | null;
+    anonymity_score: number | null;
+    first_seen: string | number | null;
+    last_seen: string | number | null;
   };
   behavior: {
-    velocity_1h: number;
-    velocity_24h: number;
-    total_volume_btc: number;
-    avg_tx_value: number;
-    counterparty_diversity: number;
+    velocity_1h: number | null;
+    velocity_24h: number | null;
+    total_volume_btc: number | null;
+    avg_tx_value: number | null;
+    counterparty_diversity: number | null;
   };
   cluster?: {
-    cluster_id: number;
-    name: string;
-    archetype: string;
-    avg_volume_btc: number;
-    anomaly_percentage: number;
-    description: string;
+    cluster_id: number | null;
+    name: string | null;
+    archetype: string | null;
+    avg_volume_btc: number | null;
+    anomaly_percentage: number | null;
+    description: string | null;
   };
   risk: {
-    score: number;
+    score: number | null;
     level: string;
     is_seed_illicit: boolean;
     propagated_risk: number;
     components: {
-      ml_anomaly: number;
-      graph_risk: number;
-      velocity_signal: number;
+      ml_anomaly: number | null;
+      graph_risk: number | null;
+      velocity_signal: number | null;
     };
   };
   transactions: BitcoinTransaction[];

@@ -1,5 +1,7 @@
-# TransactionIQ - Advanced Real-time Fraud Detection System
+# Historical Financial-Monitoring Notes (Legacy TransactionIQ)
 # =====================================================
+
+STATUS: HISTORICAL. This text describes an earlier TransactionIQ design and contains stale component, API, model, security, and setup claims. It is retained for project history only and is not a current system guide. For the current dual-domain V.E.C.T.O.R implementation, setup, APIs, limitations, and validation, use README.md, System_Architecture.md, and AUDIT/GO_NO_GO.md. Treat numerical results and capability statements below as unverified historical material.
 
 ## Table of Contents
 1. [Project Overview](#project-overview)

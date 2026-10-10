@@ -20,7 +20,7 @@ cd "${SCRIPT_DIR}"
 if [ ! -f "Frontend/dist/index.html" ]; then
     echo "[INFO] Building production frontend bundle..."
     cd Frontend
-    npm install
+    npm ci
     npm run build
     cd ..
 fi
@@ -29,11 +29,11 @@ fi
 export PORT=${PORT:-3001}
 export MONGO_URI=${MONGO_URI:-mongodb://127.0.0.1:27017}
 export MONGO_DB_NAME=${MONGO_DB_NAME:-RedisTransactions}
-export BITCOIN_SIMULATION_MODE=${BITCOIN_SIMULATION_MODE:-false}
-export DEMO_READ_ONLY=${DEMO_READ_ONLY:-false}
+export BITCOIN_SIMULATION_MODE=${BITCOIN_SIMULATION_MODE:-true}
+export DEMO_READ_ONLY=${DEMO_READ_ONLY:-true}
 
 echo "[INFO] Launching unified application server on port ${PORT}..."
 echo "[INFO] Dashboard accessible at http://localhost:${PORT}"
 
 cd Frontend
-node server/index.js
+node --env-file=../.env server/index.js

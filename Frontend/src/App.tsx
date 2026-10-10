@@ -1,12 +1,12 @@
-import { useEffect, useState } from 'react';
+import { lazy, Suspense, useEffect, useState } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { socket } from './socket';
 import Header from './components/Header';
-import Dashboard from './pages/Dashboard';
-import BitcoinDashboard from './pages/bitcoin/BitcoinDashboard';
-import BitcoinTransactionExplorer from './pages/bitcoin/BitcoinTransactionExplorer';
-import BitcoinInvestigationView from './pages/bitcoin/BitcoinInvestigationView';
-import WalletIntelligence from './pages/bitcoin/WalletIntelligence';
+const Dashboard = lazy(() => import('./pages/Dashboard'));
+const BitcoinDashboard = lazy(() => import('./pages/bitcoin/BitcoinDashboard'));
+const BitcoinTransactionExplorer = lazy(() => import('./pages/bitcoin/BitcoinTransactionExplorer'));
+const BitcoinInvestigationView = lazy(() => import('./pages/bitcoin/BitcoinInvestigationView'));
+const WalletIntelligence = lazy(() => import('./pages/bitcoin/WalletIntelligence'));
 import { TransactionProvider } from './context/TransactionContext';
 import { BitcoinProvider } from './context/BitcoinContext';
 import { ThemeProvider } from './context/ThemeContext';
@@ -67,6 +67,7 @@ function App() {
             onSearchChange={setSearchQuery}
           />
           <main className="px-4 sm:px-6 py-5 max-w-[1720px] mx-auto">
+            <Suspense fallback={<LoadingScreen />}>
             {activeDomain === 'bitcoin' ? (
               <Routes>
                 <Route path="/" element={<Navigate to="/bitcoin" replace />} />
@@ -98,6 +99,7 @@ function App() {
             ) : (
               <Dashboard />
             )}
+            </Suspense>
           </main>
           
           {!isConnected && (

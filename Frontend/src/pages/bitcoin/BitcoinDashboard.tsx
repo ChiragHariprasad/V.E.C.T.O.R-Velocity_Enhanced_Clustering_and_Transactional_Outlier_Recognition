@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { lazy, Suspense, useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
   Home,
@@ -16,19 +16,19 @@ import {
   ArrowRight,
   Coins
 } from 'lucide-react';
-import BitcoinOverview from './BitcoinOverview';
-import BitcoinLiveTransactions from './BitcoinLiveTransactions';
-import BitcoinTransactionExplorer from './BitcoinTransactionExplorer';
-import BitcoinAddressEntityExplorer from './BitcoinAddressEntityExplorer';
-import BitcoinRiskQueue from './BitcoinRiskQueue';
-import BitcoinTransactionGraph from './BitcoinTransactionGraph';
-import BitcoinBehavioralClusters from './BitcoinBehavioralClusters';
-import BitcoinAnomalyTimeline from './BitcoinAnomalyTimeline';
-import BitcoinInvestigations from './BitcoinInvestigations';
-import BitcoinInvestigationView from './BitcoinInvestigationView';
-import BitcoinModelPerformance from './BitcoinModelPerformance';
-import BitcoinDataSources from './BitcoinDataSources';
-import BitcoinSystemSettings from './BitcoinSystemSettings';
+const BitcoinOverview = lazy(() => import('./BitcoinOverview'));
+const BitcoinLiveTransactions = lazy(() => import('./BitcoinLiveTransactions'));
+const BitcoinTransactionExplorer = lazy(() => import('./BitcoinTransactionExplorer'));
+const BitcoinAddressEntityExplorer = lazy(() => import('./BitcoinAddressEntityExplorer'));
+const BitcoinRiskQueue = lazy(() => import('./BitcoinRiskQueue'));
+const BitcoinTransactionGraph = lazy(() => import('./BitcoinTransactionGraph'));
+const BitcoinBehavioralClusters = lazy(() => import('./BitcoinBehavioralClusters'));
+const BitcoinAnomalyTimeline = lazy(() => import('./BitcoinAnomalyTimeline'));
+const BitcoinInvestigations = lazy(() => import('./BitcoinInvestigations'));
+const BitcoinInvestigationView = lazy(() => import('./BitcoinInvestigationView'));
+const BitcoinModelPerformance = lazy(() => import('./BitcoinModelPerformance'));
+const BitcoinDataSources = lazy(() => import('./BitcoinDataSources'));
+const BitcoinSystemSettings = lazy(() => import('./BitcoinSystemSettings'));
 import { BitcoinTransaction, BitcoinRiskLead } from '../../types/bitcoin';
 import { useBitcoin } from '../../context/BitcoinContext';
 
@@ -185,6 +185,7 @@ const BitcoinDashboard: React.FC<Props> = ({ initialTab = 'overview' }) => {
 
       {/* Right Main Content Area */}
       <main className="flex-1 min-w-0 space-y-6">
+        <Suspense fallback={<div className="p-6 text-sm text-[var(--text-muted)]">Loading view…</div>}>
         {activeTab === 'overview' && <BitcoinOverview onOpenTab={(tab) => setActiveTab(tab as Tab)} />}
         {activeTab === 'live' && <BitcoinLiveTransactions onSelectTx={handleSelectTx} />}
         {activeTab === 'explorer' && <BitcoinTransactionExplorer onOpenGraph={handleOpenGraph} />}
@@ -203,6 +204,7 @@ const BitcoinDashboard: React.FC<Props> = ({ initialTab = 'overview' }) => {
         {activeTab === 'models' && <BitcoinModelPerformance />}
         {activeTab === 'sources' && <BitcoinDataSources />}
         {activeTab === 'settings' && <BitcoinSystemSettings />}
+        </Suspense>
       </main>
 
       {/* Floating Sticky Live Feed Ticker at Bottom */}
