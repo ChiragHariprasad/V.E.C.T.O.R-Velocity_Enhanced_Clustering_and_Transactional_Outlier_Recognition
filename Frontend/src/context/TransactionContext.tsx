@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import axios from 'axios';
 import { socket } from '../socket';
+import { API_ORIGIN } from '../config/api';
 import { 
   Transaction, 
   TransactionStats, 
@@ -10,9 +11,7 @@ import {
   DEVICE_TYPES 
 } from '../types';
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL !== undefined
-  ? import.meta.env.VITE_API_BASE_URL
-  : (typeof window !== 'undefined' && window.location.port === '5173' ? 'http://localhost:3001' : '');
+const API_BASE_URL = API_ORIGIN;
 
 interface TransactionContextType {
   transactions: Transaction[];

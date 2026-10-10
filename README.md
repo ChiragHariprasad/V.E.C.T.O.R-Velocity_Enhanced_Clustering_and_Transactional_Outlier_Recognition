@@ -19,9 +19,9 @@ The repository contains both implementation code and proposal/history material. 
 ## Prerequisites
 
 - Git
-- Node.js 20.19+ or 22.12+ and npm (Vite 8 requirement; the Docker image uses the current Node.js 20 image)
-- Python 3.11 recommended for the packaged model/scientific dependencies
-- MongoDB 7 or a compatible MongoDB URI
+- Node.js 20.19+ or 22.12+ and npm (Vite 8 requirement; tested on Node.js 22.22.2)
+- Python 3.12 recommended (tested on Python 3.12.14 for the packaged model/scientific dependencies)
+- MongoDB 7 / MongoDB Atlas or a compatible MongoDB URI
 - Redis is used by the legacy financial pipeline; the Bitcoin dashboard/API does not require Redis for its Mongo-backed demo mode
 
 ## Local installation
@@ -30,7 +30,7 @@ From the repository root, create a local environment file and Python environment
 
 ```powershell
 Copy-Item .env.example .env
-py -3.11 -m venv .venv
+py -3.12 -m venv .venv
 .\.venv\Scripts\Activate.ps1
 python -m pip install --upgrade pip
 python -m pip install -r requirements.txt
@@ -53,7 +53,7 @@ Set-Location ..
 npm --prefix Frontend run server
 ```
 
-Open `http://localhost:3001`. The server seeds empty databases with demo fixtures. Those writes are labeled as simulation data. For a two-server development workflow, run `npm --prefix Frontend run dev` in another terminal; the default CORS allowlist includes localhost ports 5173 and 5174.
+Open `http://localhost:3001`. The server seeds empty databases with demo fixtures when `SEED_DEMO_DATA=true`. Those writes are labeled as simulation data. For a two-server development workflow, run `npm --prefix Frontend run dev` in another terminal; the default CORS allowlist includes localhost ports 5173 and 5174.
 
 `start_demo.bat` and `start_demo.sh` are convenience launchers for an already installed environment. They do not install Python dependencies or MongoDB. Both default to Bitcoin simulation and read-only API mode.
 
@@ -65,29 +65,74 @@ With Docker Compose installed:
 docker compose up --build
 ```
 
-The Compose configuration starts MongoDB and the application, uses explicit Bitcoin simulation mode, and disables mutating API operations. Visit `http://localhost:3001`. Persistent MongoDB data is stored in the `mongodb_data` volume. `docker compose down -v` removes that volume and its data.
+The Compose configuration starts MongoDB and the application, uses explicit Bitcoin simulation mode (`BITCOIN_SIMULATION_MODE=true`), enables initial demo seeding (`SEED_DEMO_DATA=true`), and disables mutating API operations (`DEMO_READ_ONLY=true`). Visit `http://localhost:3001`. Persistent MongoDB data is stored in the `mongodb_data` volume. `docker compose down -v` removes that volume and its data.
 
-## Free-hosting trial (not verified)
+## Demo deployment architecture (Vercel + Render + MongoDB Atlas)
 
-The repository has no validated free-hosting deployment. A low-traffic trial can use a Render Docker web service and a MongoDB Atlas Free cluster, but both providers impose limits and may change their free plans. Render Free web services sleep after 15 minutes without traffic, take about a minute to wake, and have ephemeral local storage; keep all application records in Atlas. Atlas Free clusters have limited storage/throughput and feature support. See the [Render free-service limits](https://render.com/docs/free) and [Atlas Free cluster limits](https://www.mongodb.com/docs/atlas/reference/free-shared-limitations/) before deploying.
+The demo deployment separates concerns across three platforms:
 
-1. Create an Atlas Free cluster and a database user restricted to read/write access for `RedisTransactions`. Add the outbound IP ranges shown for the Render service to the Atlas IP access list. Do not use `0.0.0.0/0`; Atlas requires an allowed client IP range, and Render documents the shared ranges for each service's region in its [outbound IP guide](https://render.com/docs/outbound-ip-addresses).
-2. Create a Render **Web Service** from this repository and choose the Docker runtime. The Dockerfile builds the React app and starts the Express/Socket.IO server. Render routes HTTP traffic to the port in `PORT`; the app honors that variable. Use the service health path `/api/bitcoin/status`.
-3. Set these Render environment variables in the dashboard (do not commit credentials):
+```text
+┌─────────────────────────┐        HTTPS / REST & Socket.IO        ┌─────────────────────────┐
+│     Vercel (Frontend)   │ ─────────────────────────────────────── │      Render (Backend)   │
+│  React 18 + Vite 8 SPA  │                                         │  Docker (Node 22+Py3.12)│
+│  SPA deep routing via   │ ◄────────────────────────────────────── │  Express, Socket.IO, ML │
+│  Frontend/vercel.json   │        CORS: exact Vercel origin        │  Health: GET /healthz   │
+└─────────────────────────┘                                         └────────────┬────────────┘
+                                                                                 │ TLS / Outbound IPs
+                                                                                 ▼
+                                                                    ┌─────────────────────────┐
+                                                                    │      MongoDB Atlas      │
+                                                                    │  M0 Free / Dedicated    │
+                                                                    │  Synthetic demo records │
+                                                                    │  SEED_DEMO_DATA=true    │
+                                                                    └─────────────────────────┘
+```
 
-   ```text
-   NODE_ENV=production
-   MONGO_URI=<Atlas SRV connection string>
-   MONGO_DB_NAME=RedisTransactions
-   BITCOIN_SIMULATION_MODE=true
-   DEMO_READ_ONLY=true
-   CORS_ORIGIN=https://<your-service>.onrender.com
-   ```
+### 1. MongoDB Atlas setup
+1. Create an Atlas Free cluster (M0) or dedicated cluster.
+2. Create a database user restricted to read/write access for `RedisTransactions`.
+3. Configure Network Access: Add the outbound IP addresses of the Render region where your backend service runs (see [Render Outbound IPs](https://render.com/docs/outbound-ip-addresses)). Do not leave `0.0.0.0/0` in production.
+4. Copy the connection string: `mongodb+srv://<username>:<password>@<cluster>.mongodb.net/?retryWrites=true&w=majority`. Never commit this URI.
 
-   Keep the generated API read-only. Add the final service URL as the exact `CORS_ORIGIN`; do not use a wildcard. URL-encode special characters in the MongoDB username or password.
-4. After deployment, check `/api/bitcoin/status`, then run `python test_smoke.py` from the repository root with `VECTOR_SMOKE_BASE_URL` set to the deployed service URL. Confirm the response reports `SIMULATION` and seeded data is labeled synthetic.
+### 2. Render backend setup (Docker Web Service)
+1. In the Render Dashboard, create a new **Web Service** from this repository (or apply the included `render.yaml` Blueprint).
+2. Choose **Docker** runtime.
+   - Root directory: repository root (`.`)
+   - Dockerfile path: `./Dockerfile`
+   - Health check path: `/healthz`
+3. Configure environment variables in the Render Dashboard:
+   - `NODE_ENV=production`
+   - `MONGO_URI=<Atlas connection string>`
+   - `MONGO_DB_NAME=RedisTransactions`
+   - `BITCOIN_SIMULATION_MODE=true`
+   - `DEMO_READ_ONLY=true`
+   - `SEED_DEMO_DATA=true` (opt into seeding synthetic demo fixtures on first launch)
+   - `CORS_ORIGIN=https://<your-project>.vercel.app` (set to exact Vercel URL once known)
+   - `API_WRITE_TOKEN=<generate-strong-random-token>`
+   - `PYTHON_PATH=python3`
+4. The service binds to `0.0.0.0:$PORT` (Render injects `$PORT` automatically).
 
-This is a deployment outline, not a verified free-host recipe. This checkout was not deployed to Render or Atlas; startup, outbound-IP allowlisting, free-tier capacity, cold starts and recovery still need to be verified. Free service quotas can change, and this stack may exceed free build/runtime limits. Do not put real financial records or credentials in a public demo.
+### 3. Vercel frontend setup
+1. In Vercel, import this repository.
+2. Configure project settings:
+   - Framework Preset: **Vite**
+   - Root Directory: **`Frontend`**
+   - Build Command: `npm run build`
+   - Output Directory: `dist`
+   - Install Command: `npm ci`
+3. Set environment variable:
+   - `VITE_API_BASE_URL=https://<your-service>.onrender.com` (Render backend origin, no trailing slash, no `/api`)
+   - ⚠️ `VITE_API_BASE_URL` is baked into client JavaScript at build time. Changing it requires a redeployment.
+4. The included `Frontend/vercel.json` routes deep links to `index.html` while allowing static assets to resolve normally.
+
+### 4. Post-deployment smoke check
+1. Verify `/healthz` on the Render backend returns `{"status":"ok","mode":"simulation"}` (HTTP 200).
+2. Verify the Vercel dashboard loads without console errors.
+3. Verify synthetic Bitcoin blocks, transactions, entities and investigations display.
+4. Verify the Socket.IO indicator shows connected.
+5. Verify mutating POST/PUT requests return HTTP 403 (`Write operations are disabled.`).
+
+> **Scope Note:** This is a simulation-backed demo. Live Bitcoin Core node connectivity and independently validated illicit-activity detection are explicitly outside this deployment's acceptance scope. Ready for cloud deployment does not imply production financial service readiness.
 
 ## API and real-time events
 

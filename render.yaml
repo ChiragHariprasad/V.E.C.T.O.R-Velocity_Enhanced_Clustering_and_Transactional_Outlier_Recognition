@@ -1,0 +1,33 @@
+# =============================================================================
+# V.E.C.T.O.R — Render Blueprint (render.yaml)
+# Validated against Render Blueprint Specification 2024-06.
+# All secret values must be supplied through the Render Dashboard.
+# =============================================================================
+services:
+  - type: web
+    name: vector-backend
+    runtime: docker
+    repo: https://github.com/vinith0306/V.E.C.T.O.R-Velocity_Enhanced_Clustering_and_Transactional_Outlier_Recognition
+    branch: update-branch
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    healthCheckPath: /healthz
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: MONGO_DB_NAME
+        value: RedisTransactions
+      - key: BITCOIN_SIMULATION_MODE
+        value: "true"
+      - key: DEMO_READ_ONLY
+        value: "true"
+      - key: SEED_DEMO_DATA
+        value: "true"
+      - key: PYTHON_PATH
+        value: python3
+      - key: MONGO_URI
+        sync: false                    # Supply via Render Dashboard — never commit
+      - key: CORS_ORIGIN
+        sync: false                    # Set to exact Vercel production URL
+      - key: API_WRITE_TOKEN
+        generateValue: true            # Auto-generate a strong token

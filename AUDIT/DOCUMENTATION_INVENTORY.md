@@ -111,7 +111,10 @@ Older audit outputs remain for change history; their pass counts are not current
 | `Frontend/src/pages/bitcoin/BitcoinTransactionExplorer.tsx` | VERIFIED_CURRENT | Checked as current frontend/API/config surface; build and lint outcomes are in validation report. |
 | `Frontend/src/pages/bitcoin/BitcoinTransactionGraph.tsx` | UPDATED | Removed fake entity fallback; hydrates from available entities. |
 | `Frontend/src/pages/bitcoin/WalletIntelligence.tsx` | UPDATED | Represents unavailable wallet metrics as unavailable; build outcome is in validation report. |
-| `Frontend/src/socket.ts` | VERIFIED_CURRENT | Checked as current frontend/API/config surface; build and lint outcomes are in validation report. |
+| `Frontend/src/config/api.ts` | NEW | Centralized API origin and Socket.IO URL configuration module; dev fallback, trailing-slash stripping, missing config error. |
+| `Frontend/src/socket.ts` | UPDATED | Migrated to centralized API config module. |
+| `Frontend/src/context/BitcoinContext.tsx` | UPDATED | Migrated API origin resolution to centralized API config module. |
+| `Frontend/src/context/TransactionContext.tsx` | UPDATED | Migrated API origin resolution to centralized API config module. |
 | `Frontend/src/types/bitcoin.ts` | UPDATED | Added dataset mode and simulated fixture count fields. |
 | `Frontend/src/types/index.ts` | VERIFIED_CURRENT | Checked as current frontend/API/config surface; build and lint outcomes are in validation report. |
 | `Frontend/src/vite-env.d.ts` | VERIFIED_CURRENT | Checked as current frontend/API/config surface; build and lint outcomes are in validation report. |
@@ -119,15 +122,25 @@ Older audit outputs remain for change history; their pass counts are not current
 | `Frontend/tsconfig.app.json` | VERIFIED_CURRENT | Checked as current frontend/API/config surface; build and lint outcomes are in validation report. |
 | `Frontend/tsconfig.json` | VERIFIED_CURRENT | Checked as current frontend/API/config surface; build and lint outcomes are in validation report. |
 | `Frontend/tsconfig.node.json` | VERIFIED_CURRENT | Checked as current frontend/API/config surface; build and lint outcomes are in validation report. |
-| `Frontend/vite.config.ts` | VERIFIED_CURRENT | Compatible with Vite 8 and React plugin 6; production build passed. |
+| `Frontend/vite.config.ts` | UPDATED | Removed hardcoded allowedHosts domain; dev server on port 5173. |
+| `Frontend/vercel.json` | NEW | Vercel SPA rewrite configuration routing deep links to /index.html. |
+| `Frontend/.env.example` | NEW | Template for browser-visible Vite build-time environment variables. |
+| `Frontend/server/index.js` | UPDATED | Added /healthz endpoint, 0.0.0.0 bind, explicit SEED_DEMO_DATA opt-in, db handle injection to seeders, graceful shutdown. |
+| `Frontend/server/seed.js` | UPDATED | Accepts db handle; eliminated hardcoded localhost URI; idempotent checks. |
+| `Frontend/server/seed_bitcoin.js` | UPDATED | Accepts db handle; eliminated hardcoded localhost URI; idempotent checks. |
+| `Frontend/server/deployment.test.js` | NEW | Automated deployment regression test suite (8 tests); total 13 Node tests pass. |
+| `Dockerfile` | UPDATED | Python 3.12 + Node 22 runtime; /healthz health check; binds to $PORT; minimal context without secrets. |
+| `.dockerignore` | NEW | Build context exclusion rules (excludes secrets, dev configs, and build caches). |
+| `render.yaml` | NEW | Render Blueprint specification with dashboard-supplied secret configuration. |
+| `.gitignore` | UPDATED | Ignores .env*, build artifacts, test caches, and OS files while preserving example envs. |
 | `LICENSE` | VERIFIED_CURRENT | License retained unchanged. |
 | `NOTICE.md` | VERIFIED_CURRENT | Legal notice retained unchanged. |
-| `README.md` | UPDATED | Current setup/API/simulation guide linked to architecture and NO-GO evidence. |
+| `README.md` | UPDATED | Added Vercel + Render + MongoDB Atlas demo deployment guide, topology, and boundaries. |
 | `SIH2025-SIH26146_Team-Prometeuss.pdf` | UPDATED | Updated the appended status page with current Python/frontend/local integration evidence; rendered and visually inspected. |
 | `SIH2025-SIH26146_Team-Prometeuss.pptx` | UPDATED | Updated appended status slide with current Python/frontend/local integration evidence; text/package inspected, visual rendering unavailable. |
-| `System_Architecture.md` | UPDATED | Rewritten from checked-in API, Python pipeline, storage and runtime boundaries. |
+| `System_Architecture.md` | UPDATED | Added Vercel + Render + Atlas deployment topology and operational boundaries diagram. |
 | `TECHNICAL_WRITEUP.md` | HISTORICAL | Added design/history status notice; proposal claims retained as non-runtime evidence. |
-| `docker-compose.yml` | UPDATED | Explicit simulation/read-only operation and MongoDB health dependency. |
+| `docker-compose.yml` | UPDATED | Added SEED_DEMO_DATA=true, simulation mode, and read-only flags. |
 | `documentation.txt` | HISTORICAL | Renamed as legacy TransactionIQ notes with explicit stale-claim notice. |
 | `requirements.txt` | UPDATED | Added pytest and pinned scikit-learn 1.7.1 to the checked-in serialized artifact version. |
 | `run.sh` | UPDATED | Replaced process-killing launcher with a safe compatibility wrapper. |

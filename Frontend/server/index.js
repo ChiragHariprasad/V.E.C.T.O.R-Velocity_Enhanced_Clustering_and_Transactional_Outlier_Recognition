@@ -177,26 +177,32 @@ const rejectWriteUnlessAuthorized = createWriteGuard();
 const mongoURL = process.env.MONGO_URI || process.env.MONGODB_URI || 'mongodb://localhost:27017';
 const dbName = process.env.MONGO_DB_NAME || 'RedisTransactions';
 const pollIntervalMs = Number(process.env.TXN_POLL_MS || 2000);
+const SEED_DEMO_DATA = process.env.SEED_DEMO_DATA === 'true';
 let db;
+let mongoClient;
+let isReady = false;
 
 // Connect to MongoDB
 async function connectToMongo() {
   try {
-    const client = new MongoClient(mongoURL);
-    await client.connect();
+    mongoClient = new MongoClient(mongoURL);
+    await mongoClient.connect();
     console.log('Connected to MongoDB');
-    db = client.db(dbName);
+    db = mongoClient.db(dbName);
     
-    // Auto-seed financial & bitcoin databases if empty
-    await seedDatabase(false).catch(err => console.warn('Auto-seed warning (Financial):', err.message));
-    await seedBitcoinDatabase(false).catch(err => console.warn('Auto-seed warning (Bitcoin):', err.message));
+    // Seed demo data only when explicitly opted-in via SEED_DEMO_DATA=true
+    if (SEED_DEMO_DATA) {
+      await seedDatabase(db, false).catch(err => console.warn('Auto-seed warning (Financial):', err.message));
+      await seedBitcoinDatabase(db, false).catch(err => console.warn('Auto-seed warning (Bitcoin):', err.message));
+    }
     
     // Setup change streams or polling fallback
     await setupChangeStreams();
+    isReady = true;
     
-    return client;
+    return mongoClient;
   } catch (error) {
-    console.error('MongoDB connection error:', error);
+    console.error('MongoDB connection error:', error.message);
     process.exit(1);
   }
 }
@@ -1409,24 +1415,53 @@ app.get('/api/bitcoin/risk-propagation', async (req, res) => {
   }
 });
 
-// Static SPA serving for production
+// Healthcheck endpoint — returns ready only after MongoDB connection succeeds
+app.get('/healthz', (req, res) => {
+  if (isReady && db) {
+    return res.status(200).json({ status: 'ok', mode: process.env.BITCOIN_SIMULATION_MODE === 'true' ? 'simulation' : 'live' });
+  }
+  return res.status(503).json({ status: 'starting' });
+});
+
+// Static SPA serving for local Docker/Compose (Vercel handles SPA in production)
 const distPath = path.resolve(__dirname, '../dist');
 if (fs.existsSync(distPath)) {
   console.log('Serving production frontend from:', distPath);
   app.use(express.static(distPath));
   app.get('*', (req, res, next) => {
-    if (req.path.startsWith('/api') || req.path.startsWith('/socket.io')) {
+    if (req.path.startsWith('/api') || req.path.startsWith('/socket.io') || req.path === '/healthz') {
       return next();
     }
     res.sendFile(path.join(distPath, 'index.html'));
   });
 }
 
-// Start server
+// Start server — bind to 0.0.0.0 for container/Render compatibility
 const PORT = process.env.PORT || 3001;
-server.listen(PORT, async () => {
-  console.log(`Server running on port ${PORT}`);
+server.listen(PORT, '0.0.0.0', async () => {
+  console.log(`Server running on 0.0.0.0:${PORT}`);
   await connectToMongo();
 });
+
+// Graceful shutdown
+const shutdown = async (signal) => {
+  console.log(`${signal} received. Shutting down gracefully...`);
+  isReady = false;
+  server.close(() => {
+    if (mongoClient) {
+      mongoClient.close(false).then(() => {
+        console.log('MongoDB connection closed.');
+        process.exit(0);
+      }).catch(() => process.exit(1));
+    } else {
+      process.exit(0);
+    }
+  });
+  // Force exit after 10 seconds
+  setTimeout(() => process.exit(1), 10000).unref();
+};
+
+process.on('SIGTERM', () => shutdown('SIGTERM'));
+process.on('SIGINT', () => shutdown('SIGINT'));
 
 export default app;

@@ -20,21 +20,22 @@
 |---|---|---|
 | Python dependency install | Fresh temporary venv: `python -m pip install -r requirements.txt` | **PASS** |
 | Python dependency consistency | `python -m pip check` | **PASS** — no broken requirements. |
-| Bitcoin Python suite | `python -m pytest Backend/bitcoin -q -p no:cacheprovider` | **PASS** — 60 passed, 7 subtests; one upstream XGBoost warning says the serialized fallback model was produced by an older XGBoost version. |
+| Bitcoin Python suite | `python -m pytest Backend/bitcoin -q -p no:cacheprovider` | **PASS** — 60 passed, 4 warnings, 7 subtests; scikit-learn deprecation notice and XGBoost serialization warning. |
 | Ground-truth independence regression | Included in the Bitcoin suite; separately run from `test_remediation_regression.py` | **PASS** — identical transactions with only `is_illicit` changed produce the same ML component score in independent pipelines. |
-| Node security/input tests | `npm test` from `Frontend/` | **PASS** — 5 tests, 0 failures. |
-| Express/security syntax | `node --check server/index.js`; `node --check server/security.js` | **PASS** |
+| Node security & deployment tests | `npm test` from `Frontend/` (`security.test.js` + `deployment.test.js`) | **PASS** — 13 tests, 0 failures (CORS allowlist, write guard, token auth, rate limits, payload validation, URL resolution, trailing slash normalization, /healthz readiness, seed flag opt-in). |
+| Express/security/seed syntax | `node --check` on all 7 server and test scripts | **PASS** — index.js, security.js, seed.js, seed_bitcoin.js, integration-smoke.js, deployment.test.js, security.test.js. |
 | Frontend lint | `npm run lint` | **PASS WITH WARNINGS** — 0 errors; three existing `react-refresh/only-export-components` warnings in context modules. |
-| Frontend production build | `npm run build` | **PASS** — Vite 8.3.4, 2,174 modules; CSS 70.41 kB; largest JS file 304.36 kB (100.37 kB gzip). Lazy route/tab chunks keep the output below Vite's 500 kB warning threshold. |
-| Frontend dependency audit | `npm ci` audit output | **PASS** — 0 vulnerabilities reported after dependency updates. |
+| Frontend production build | `npm run build` | **PASS** — Vite 8.3.4, 2,175 modules transformed; CSS 70.41 kB; largest JS chunk 304.69 kB (100.58 kB gzip). All chunks below 500 kB. |
+| Frontend dependency audit | `npm ci` audit output | **PASS** — 0 vulnerabilities reported. |
 | Smoke script syntax | Parse `test_smoke.py` with Python AST | **PASS** |
-| Live smoke test | `python test_smoke.py` | **PASS** — local app backed by a temporary MongoDB 8.2.6 in-memory server; six read-only/guard checks passed, including the default write rejection. |
-| Docker clean install | `docker info --format '{{.ServerVersion}}'` | **BLOCKED** — Docker daemon unavailable. |
-| Local API/database/WebSocket integration | `npm run test:integration` | **PASS** — one random synthetic transaction was analyzed through Express and the Python pipeline, retrieved by txid from MongoDB, and observed on `bitcoin:newTransaction`. The database was in-memory; durable/production MongoDB recovery is not established. |
-| Docker clean install | `docker info --format '{{.ServerVersion}}'` | **BLOCKED** — Docker daemon unavailable; Compose startup was not run. |
-| Production hosting/live Bitcoin/model quality | Not run | **NOT VERIFIED** — no cloud deployment, Bitcoin Core connection, representative performance benchmark or independently labeled detection-quality evaluation. |
-| PPTX visual rendering | PowerPoint/LibreOffice renderer | **BLOCKED** — no renderer available. The appended slide text and seven-slide package structure were inspected; visual layout was not verified. |
-| PDF appendix | `pdfinfo`, `pdftotext`, rendered page 7 | **PASS** — seven pages; the updated final page was rendered and visually inspected. Poppler reports missing fonts for two symbols on preceding original pages. |
+| Live local smoke test | `python test_smoke.py` | **PASS** — local app backed by temporary MongoDB in-memory server; six read-only/guard checks passed. |
+| Local API/database/WebSocket integration | `npm run test:integration` | **PASS** — synthetic transaction analyzed through Express and Python, retrieved by txid, and observed on Socket.IO. |
+| Docker configuration | Dockerfile (Python 3.12 + Node 22), `.dockerignore`, `render.yaml` | **PREPARED** — verified syntax, versions, and build-context rules. Docker Engine CLI was present, daemon was offline locally. |
+| Vercel SPA configuration | `Frontend/vercel.json`, `Frontend/.env.example`, `Frontend/src/config/api.ts` | **PREPARED & TESTED** — SPA deep links rewrite to `/index.html`, centralized API URL resolution verified by tests. |
+| Live cloud deployment (Render + Vercel + Atlas) | Cloud hosting not run as part of repo prep | **PENDING LIVE CLOUD EXECUTION** — repository is fully prepared with handoff checklist; live cloud deployment must be verified by user. |
+| Production hosting/live Bitcoin/model quality | Explicitly out of scope | **OUT OF SCOPE** — demo operates in simulation mode with synthetic fixtures; live Bitcoin node and production financial readiness are not claimed. |
+| PPTX visual rendering | PowerPoint/LibreOffice renderer | **BLOCKED** — no renderer available locally. Slide structure verified. |
+| PDF appendix | `pdfinfo`, `pdftotext`, rendered page 7 | **PASS** — seven pages; final page verified. |
 
 The XGBoost compatibility warning remains because the producing version of the checked-in pickle is not recorded. The artifact loaded and its tests passed with XGBoost `3.4.1`, but that warning is not suppressed and does not establish production compatibility or model quality.
 

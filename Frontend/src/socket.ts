@@ -1,8 +1,5 @@
 import { io } from 'socket.io-client';
-
-const SOCKET_URL = import.meta.env.VITE_API_BASE_URL !== undefined
-  ? import.meta.env.VITE_API_BASE_URL
-  : (typeof window !== 'undefined' && window.location.port === '5173' ? 'http://localhost:3001' : undefined);
+import { SOCKET_URL } from './config/api';
 
 // Creating a socket connection to Express server with automatic origin resolution in production
 export const socket = io(SOCKET_URL, {

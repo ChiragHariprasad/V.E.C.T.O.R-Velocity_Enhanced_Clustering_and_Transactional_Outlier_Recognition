@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import axios from 'axios';
 import { socket } from '../socket';
+import { API_ORIGIN } from '../config/api';
 import {
   BitcoinTransaction,
   BitcoinBlock,
@@ -21,10 +22,7 @@ import {
   WalletAnalysis
 } from '../types/bitcoin';
 
-const BASE_URL = import.meta.env.VITE_API_BASE_URL !== undefined
-  ? import.meta.env.VITE_API_BASE_URL
-  : (typeof window !== 'undefined' && window.location.port === '5173' ? 'http://localhost:3001' : '');
-const API_BASE = `${BASE_URL}/api/bitcoin`;
+const API_BASE = `${API_ORIGIN}/api/bitcoin`;
 
 interface BitcoinContextType {
   status: BitcoinStatus | null;

@@ -10,7 +10,7 @@
     "dev": "vite",
     "build": "vite build",
     "lint": "eslint .",
-    "test": "node --test server/security.test.js",
+    "test": "node --test server/security.test.js server/deployment.test.js",
     "test:integration": "node server/integration-smoke.js",
     "preview": "vite preview",
     "server": "node --env-file=../.env server/index.js"

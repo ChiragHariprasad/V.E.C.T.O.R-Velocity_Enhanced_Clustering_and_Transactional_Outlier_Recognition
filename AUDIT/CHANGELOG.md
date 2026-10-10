@@ -19,6 +19,17 @@
 - Rewrote README and architecture notes; labeled prior audit outputs and proposal/legacy write-ups as historical; added current validation, NO-GO assessment and documentation inventory.
 - Appended implementation-status notes to the SIH PowerPoint and PDF. Original proposal material remains in place and is not treated as runtime evidence.
 
+## 10 October 2026 — Vercel + Render + MongoDB Atlas Deployment Preparation
+
+- **Centralized frontend API configuration:** Created `Frontend/src/config/api.ts` providing `API_ORIGIN`, `SOCKET_URL`, `apiUrl`, trailing slash normalization, development localhost fallback, and clear build/startup failure if `VITE_API_BASE_URL` is omitted in production. Migrated `socket.ts`, `BitcoinContext.tsx`, and `TransactionContext.tsx` to shared config.
+- **Vercel SPA configuration:** Added `Frontend/vercel.json` with rewrite rules routing non-asset application URLs to `/index.html` for deep linking. Created `Frontend/.env.example`. Removed hardcoded domain from `Frontend/vite.config.ts`.
+- **Render backend configuration:** Aligned `Dockerfile` to Python 3.12 + Node 22, configured `/healthz` health check, bound server to `0.0.0.0:$PORT`, and created `.dockerignore` to keep image layers minimal and secret-free. Created `render.yaml` Blueprint with dashboard-supplied secret parameters.
+- **MongoDB Atlas consistency & safe seeding:** Refactored `seed.js` and `seed_bitcoin.js` to accept the server's connected database handle, eliminating hardcoded localhost URIs. Added explicit `SEED_DEMO_DATA=true` opt-in flag; normal startups and container restarts perform idempotent checks and never drop collections.
+- **Readiness probe & lifecycle:** Added `GET /healthz` returning 503 during startup and 200 `{ status: 'ok', mode: 'simulation' }` once MongoDB connects. Added graceful shutdown handlers for `SIGTERM` and `SIGINT`.
+- **Deployment test suite:** Created `Frontend/server/deployment.test.js` adding 8 automated tests covering URL resolution, trailing-slash normalization, missing config errors, CORS comma-separated allowlists, `/healthz` readiness, seeding flag safety, and read-only lockdown. Total Node test suite now has 13 passing tests.
+- **Documentation & architecture:** Updated `README.md`, `System_Architecture.md`, `.env.example`, `.gitignore`, `docker-compose.yml`, `AUDIT/GO_NO_GO.md`, `AUDIT/VALIDATION_RESULTS.md`, and `AUDIT/DOCUMENTATION_INVENTORY.md` to document the Vercel + Render + Atlas topology, environment boundaries, and deployment handoff checklist.
+
 ## Remaining verification
 
 Durable managed-database recovery, Docker startup, cloud hosting, live-node checks, representative performance and labeled detection quality remain unverified in this environment. The PowerPoint implementation-status slide was updated, but could not be visually rendered because no presentation renderer is installed. See [GO_NO_GO.md](GO_NO_GO.md) and [VALIDATION_RESULTS.md](VALIDATION_RESULTS.md).
+

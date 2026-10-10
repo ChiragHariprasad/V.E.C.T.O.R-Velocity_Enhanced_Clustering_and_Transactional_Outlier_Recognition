@@ -53,14 +53,35 @@ The Express API is implemented in `Frontend/server/index.js`. Domain routes incl
 
 Socket.IO emits financial `newTransaction` and Bitcoin `bitcoin:newTransaction`, `bitcoin:newRiskEvent`, `bitcoin:newAlert`, `bitcoin:investigationCreated` events. When MongoDB supports change streams the server uses them; standalone MongoDB uses a polling fallback configured by `TXN_POLL_MS` (default 2000 ms). Polling is not an exactly-once delivery guarantee.
 
-## Deployment and operational boundaries
+## Deployment architecture and operational boundaries
 
-- Production frontend assets are served from `Frontend/dist` when present; `PORT` defaults to 3001.
-- `docker-compose.yml` provides MongoDB plus the app, with explicit simulation mode and read-only API operations.
-- Redis is used by financial scripts but is not a prerequisite for reading the Bitcoin seed-backed UI.
-- Mutating API routes default to blocked. Production write access requires `DEMO_READ_ONLY=false` and a bearer token in `API_WRITE_TOKEN`; bodies, transaction counts and request rate are bounded. The in-process rate limiter is not a production distributed gateway.
-- Real Bitcoin Core RPC is only probed for status when simulation mode is disabled. Wallet-send/sign methods are outside the permitted read-only RPC method set.
-- Free-hosting availability and provider-specific limits have not been verified. Public deployment requires a secured MongoDB, HTTPS, secrets management, a protected write path, external rate limiting and resource budgets.
+The public demonstration targets a decoupled cloud architecture:
+
+```mermaid
+flowchart TD
+  User([Browser Client]) -->|HTTPS / Deep Links| Vercel[Vercel Frontend: React 18 + Vite 8 SPA]
+  Vercel -.->|VITE_API_BASE_URL (build-time)| User
+  User -->|REST API & Socket.IO| Render[Render Web Service: Unified Docker Container]
+  subgraph Render Container [Render Container: Python 3.12 + Node 22]
+    Express[Express REST API - port $PORT]
+    Socket[Socket.IO Server]
+    PythonSub[Python 3.12 Analytics & Scikit-learn Models]
+    Healthz["Readiness Probe: GET /healthz"]
+    Express --> PythonSub
+    Express --> Socket
+  end
+  Render -->|TLS / Outbound IPs| Atlas[(MongoDB Atlas Free M0 / Dedicated)]
+  subgraph Atlas Collections
+    MongoFT[Financial Collections: Transactions]
+    MongoBTC[Bitcoin Collections: Blocks, Txs, Entities, Clusters, Risk, Investigations]
+  end
+```
+
+- **Frontend (Vercel):** Hosts the static React/Vite SPA. All deep links and client routes route to `index.html` via `Frontend/vercel.json`. The backend origin is configured via `VITE_API_BASE_URL` at build time. No Express, Python, or MongoDB secrets exist in Vercel.
+- **Backend (Render):** A single Docker web service running `Dockerfile` (`python:3.12-slim` + Node 22). Serves Express, Socket.IO, and Python analytics. Binds to `0.0.0.0:$PORT`. Readiness is validated via `GET /healthz` (returns 503 until MongoDB connects, 200 `{status: 'ok', mode: 'simulation'}` when ready). Gracefully shuts down on `SIGTERM`/`SIGINT`.
+- **Database (MongoDB Atlas):** Persistent cloud database for financial and Bitcoin collections. Initial synthetic datasets are seeded safely on first launch when `SEED_DEMO_DATA=true`. Startup does not drop existing collections. Network access is restricted to Render outbound IPs.
+- **Security Boundaries:** Mutating API routes default to blocked (`DEMO_READ_ONLY=true`). Production write access requires an opt-in token (`API_WRITE_TOKEN`). In-process rate limiting, JSON payload limits (2 MB), batch limits (50 analyzed, 200 raw), and exact-origin CORS (`CORS_ORIGIN`) protect against resource abuse.
+- **Simulation Scope:** Real Bitcoin Core RPC is only probed when `BITCOIN_SIMULATION_MODE=false`. The public demonstration explicitly runs in simulation mode with synthetic fixtures. Validated illicit-activity detection and live network monitoring are outside this demo scope.
 
 ## Legacy design material
 

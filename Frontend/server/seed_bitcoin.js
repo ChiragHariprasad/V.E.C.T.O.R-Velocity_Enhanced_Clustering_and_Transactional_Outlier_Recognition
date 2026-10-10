@@ -1,10 +1,6 @@
-﻿import { MongoClient } from 'mongodb';
 import crypto from 'crypto';
 
-const mongoURL = process.env.MONGO_URI || process.env.MONGODB_URI || 'mongodb://127.0.0.1:27017';
-const dbName = process.env.MONGO_DB_NAME || 'RedisTransactions';
-
-// GeoIP lookup table (bundled â€” mirrors the Python backend)
+// GeoIP lookup table (bundled — mirrors the Python backend)
 const GEOIP_TABLE = [
   { country: 'US', asn: 'AS15169', label: 'Google LLC',       ip_prefix: '34.' },
   { country: 'US', asn: 'AS16509', label: 'Amazon AWS',       ip_prefix: '54.' },
@@ -28,11 +24,14 @@ function randomIP(geoEntry) {
   return { ip: parts.slice(0, 4).join('.'), country: g.country, asn: g.asn };
 }
 
-export async function seedBitcoinDatabase(force = false) {
-  const client = new MongoClient(mongoURL);
-  await client.connect();
-  const db = client.db(dbName);
-
+/**
+ * Seed Bitcoin demo data.
+ *
+ * @param {import('mongodb').Db} db - Connected database handle (no standalone connection).
+ * @param {boolean} force - If true, drop existing data and reseed. Destructive — should
+ *   never be triggered by an ordinary restart.
+ */
+export async function seedBitcoinDatabase(db, force = false) {
   const blockCol = db.collection('bitcoin_blocks');
   const txCol = db.collection('bitcoin_transactions');
   const entityCol = db.collection('bitcoin_entities');
@@ -42,8 +41,7 @@ export async function seedBitcoinDatabase(force = false) {
 
   const existingTxs = await txCol.countDocuments();
   if (!force && existingTxs > 0) {
-    console.log(`Bitcoin data already seeded (${existingTxs} transactions).`);
-    await client.close();
+    console.log(`Bitcoin data already seeded (${existingTxs} transactions). Skipping seed.`);
     return;
   }
 
@@ -57,7 +55,7 @@ export async function seedBitcoinDatabase(force = false) {
     console.log('Cleared existing Bitcoin collections.');
   }
 
-  console.log('âš¡ Seeding Bitcoin blocks, transactions, entities, and risk leads...');
+  console.log('⚡ Seeding Bitcoin blocks, transactions, entities, and risk leads...');
 
   const sampleAddresses = [
     "bc1qar0srrr7xfkvy5l643lydnw9re59gtzzwf5mdq",
@@ -119,7 +117,7 @@ export async function seedBitcoinDatabase(force = false) {
       risk_score: score,
       risk_level: score >= 75 ? 'CRITICAL' : (score >= 50 ? 'HIGH' : (score >= 25 ? 'MEDIUM' : 'LOW')),
       pagerank: isHighRisk ? 0.0124 + i * 0.001 : 0.0018,
-      // Network-layer fields (new)
+      // Network-layer fields
       geo_countries: [ipInfo.country],
       unique_ips: isHighRisk ? 8 + i : 2,
       anonymity_score: isIllicit ? 0.85 : (isSuspicious ? 0.35 : 0.05),
@@ -250,7 +248,7 @@ export async function seedBitcoinDatabase(force = false) {
         cluster_id: entity.cluster_id,
         pattern,
         status: 'confirmed',
-        // Network-layer fields (new)
+        // Network-layer fields
         src_ip: srcIP.ip,
         dst_ip: dstIP.ip,
         src_port: 8333,
@@ -352,16 +350,19 @@ export async function seedBitcoinDatabase(force = false) {
   await invCol.insertMany(markFixture(investigations));
   if (geoStats.length > 0) await ipCorCol.insertMany(markFixture(geoStats));
 
-  console.log(`âœ… Seeded ${blocks.length} blocks, ${transactions.length} txs, ${entities.length} entities, ${riskEvents.length} risk leads, ${investigations.length} investigations, ${geoStats.length} geo records.`);
-  await client.close();
+  console.log(`✅ Seeded ${blocks.length} blocks, ${transactions.length} txs, ${entities.length} entities, ${riskEvents.length} risk leads, ${investigations.length} investigations, ${geoStats.length} geo records.`);
 }
 
+// CLI standalone execution (for manual destructive reseed only)
 if (process.argv[1] && process.argv[1].includes('seed_bitcoin.js')) {
-  seedBitcoinDatabase(true).then(() => {
-    console.log('Bitcoin seed complete.');
-    process.exit(0);
-  }).catch(e => {
-    console.error(e);
-    process.exit(1);
-  });
+  const { MongoClient } = await import('mongodb');
+  const mongoURL = process.env.MONGO_URI || process.env.MONGODB_URI || 'mongodb://127.0.0.1:27017';
+  const dbName = process.env.MONGO_DB_NAME || 'RedisTransactions';
+  const client = new MongoClient(mongoURL);
+  await client.connect();
+  console.log('WARNING: Running destructive Bitcoin reseed via CLI.');
+  await seedBitcoinDatabase(client.db(dbName), true);
+  await client.close();
+  console.log('Bitcoin seed complete.');
+  process.exit(0);
 }

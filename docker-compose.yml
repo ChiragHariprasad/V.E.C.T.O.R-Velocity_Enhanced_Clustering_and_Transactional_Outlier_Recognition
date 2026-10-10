@@ -35,6 +35,7 @@ services:
       - BITCOIN_RPC_HOST=127.0.0.1
       - BITCOIN_RPC_PORT=8332
       - DEMO_READ_ONLY=true
+      - SEED_DEMO_DATA=true
       - NODE_ENV=production
     depends_on:
       mongodb:

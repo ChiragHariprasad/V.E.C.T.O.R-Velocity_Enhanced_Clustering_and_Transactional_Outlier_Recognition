@@ -1,4 +1,3 @@
-import { MongoClient } from 'mongodb';
 import fs from 'fs';
 import path from 'path';
 import readline from 'readline';
@@ -7,9 +6,6 @@ import { fileURLToPath } from 'url';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-
-const mongoURL = process.env.MONGO_URI || process.env.MONGODB_URI || 'mongodb://127.0.0.1:27017';
-const dbName = process.env.MONGO_DB_NAME || 'RedisTransactions';
 
 async function parseCSV(filePath, limit = 2000) {
   if (!fs.existsSync(filePath)) return [];
@@ -39,11 +35,14 @@ async function parseCSV(filePath, limit = 2000) {
   return records;
 }
 
-export async function seedDatabase(force = false) {
-  const client = new MongoClient(mongoURL);
-  await client.connect();
-  const db = client.db(dbName);
-  
+/**
+ * Seed financial demo data.
+ *
+ * @param {import('mongodb').Db} db - Connected database handle (no standalone connection).
+ * @param {boolean} force - If true, drop existing data and reseed. Destructive — should
+ *   never be triggered by an ordinary restart.
+ */
+export async function seedDatabase(db, force = false) {
   const fraudCollection = db.collection('fraud_transactions');
   const legitCollection = db.collection('legit_transactions');
 
@@ -51,14 +50,17 @@ export async function seedDatabase(force = false) {
   const legitCount = await legitCollection.countDocuments();
 
   if (!force && (fraudCount > 0 || legitCount > 0)) {
-    console.log(`Database already has data (${fraudCount} fraud, ${legitCount} legit).`);
-    await client.close();
+    console.log(`Database already has data (${fraudCount} fraud, ${legitCount} legit). Skipping seed.`);
     return;
   }
 
-  await fraudCollection.deleteMany({});
-  await legitCollection.deleteMany({});
-  console.log('Cleared existing collections. Seeding rich transaction dataset...');
+  if (force) {
+    await fraudCollection.deleteMany({});
+    await legitCollection.deleteMany({});
+    console.log('Cleared existing financial collections. Seeding rich transaction dataset...');
+  } else {
+    console.log('Seeding financial demo data...');
+  }
 
   const transactionsPath = path.resolve(__dirname, '../../Backend/transactions.csv');
   const syntheticPath = path.resolve(__dirname, '../../Backend/synthetic_txns.csv');
@@ -162,16 +164,18 @@ export async function seedDatabase(force = false) {
     })));
     console.log(`✅ Seeded ${fraudDocs.length} fraud transactions.`);
   }
-
-  await client.close();
 }
 
+// CLI standalone execution (for manual destructive reseed only)
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
-  seedDatabase(true).then(() => {
-    console.log('Seed completed successfully!');
-    process.exit(0);
-  }).catch(err => {
-    console.error('Seed error:', err);
-    process.exit(1);
-  });
+  const { MongoClient } = await import('mongodb');
+  const mongoURL = process.env.MONGO_URI || process.env.MONGODB_URI || 'mongodb://127.0.0.1:27017';
+  const dbName = process.env.MONGO_DB_NAME || 'RedisTransactions';
+  const client = new MongoClient(mongoURL);
+  await client.connect();
+  console.log('WARNING: Running destructive reseed via CLI.');
+  await seedDatabase(client.db(dbName), true);
+  await client.close();
+  console.log('Seed completed successfully!');
+  process.exit(0);
 }
